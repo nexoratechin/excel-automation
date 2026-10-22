@@ -1,0 +1,9 @@
+{
+  "email_col": "Email Address",
+  "phone_col": "Mobile No",
+  "name_col": "Name",
+  "required": ["Name"],
+  "country": "IN",
+  "phone_format": "local",
+  "header_row": 1
+}
