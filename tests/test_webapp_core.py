@@ -68,6 +68,33 @@ class TestProcess:
     def test_xlsx_upload_works(self):
         assert len(process_file(dirty_xlsx(), "contacts.xlsx").workbook) > 1000
 
+    def test_excel_numeric_phone_is_not_corrupted(self):
+        # The bug this guards: 9876543210.0 used to become 8765432100.
+        df = pd.DataFrame(
+            {"Name": ["A"], "Email Address": ["a@gmail.com"], "Mobile No": [9876543210.0]}
+        )
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False)
+        result = process_file(buffer.getvalue(), "numbers.xlsx")
+        assert result.cleaned_preview.iloc[0]["Mobile No"] == "9876543210"
+        assert result.stats.invalid_phone == 0
+
+    def test_header_row_can_be_moved(self):
+        buffer = io.BytesIO()
+        title = pd.DataFrame([["Acme Contacts 2026"]])
+        contacts = pd.DataFrame(
+            [("A", "a@gmail.com", "9876543210")],
+            columns=["Name", "Email Address", "Mobile No"],
+        )
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            title.to_excel(writer, index=False, header=False)   # row 1: a title
+            contacts.to_excel(writer, index=False, startrow=1)  # row 2: headers
+        buffer.seek(0)
+
+        result = process_file(buffer.getvalue(), "titled.xlsx", header_row=2)
+        assert result.email_col == "Email Address"
+        assert result.cleaned_total == 1
+
     def test_report_shows_uploaded_filename(self, tmp_path):
         result = process_file(dirty_csv(), "client_list.csv")
         path = tmp_path / "out.xlsx"

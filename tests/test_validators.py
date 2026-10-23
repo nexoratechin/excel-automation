@@ -73,6 +73,35 @@ class TestPhone:
         assert normalize_phone("") == (None, "empty")
 
 
+class TestNumericPhones:
+    """Excel stores every number as a float; a phone column always arrives as
+    9876543210.0. Stripping digits from that used to yield 98765432100 and then
+    keep the last ten, silently producing a different number."""
+
+    @pytest.mark.parametrize(
+        "raw", ["9876543210.0", "9876543210.000", "9876543210.", 9876543210.0, 9876543210]
+    )
+    def test_numeric_values_keep_the_real_number(self, raw):
+        assert normalize_phone(raw, "IN", "local") == ("9876543210", None)
+
+    def test_numeric_with_country_prefix(self):
+        assert normalize_phone("+91 98765 43210.0", "IN", "local") == ("9876543210", None)
+
+    def test_fractional_part_is_rejected_not_truncated(self):
+        assert normalize_phone("9876543210.5") == (None, "invalid phone")
+
+    def test_scientific_notation_text_is_rejected(self):
+        # The string "9.87654E+09" has already lost digits upstream.
+        assert normalize_phone("9.87654E+09") == (None, "invalid phone")
+
+    def test_float_value_is_taken_at_face_value(self):
+        # 9.87654e9 really is 9876540000.0; there is nothing to recover.
+        assert normalize_phone(9.87654e9, "IN", "local") == ("9876540000", None)
+
+    def test_extension_text_is_rejected(self):
+        assert normalize_phone("9876543210 ext 12") == (None, "invalid phone")
+
+
 class TestCleanText:
     def test_nbsp_and_padding(self):
         assert clean_text("  Rahul\u00a0  Sharma  ") == "Rahul Sharma"
