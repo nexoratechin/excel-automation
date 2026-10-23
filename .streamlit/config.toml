@@ -1,0 +1,20 @@
+[theme]
+base = "light"
+primaryColor = "#1F3864"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F4F8"
+textColor = "#1A1A1A"
+font = "sans serif"
+
+[server]
+# Matches MAX_BYTES in src/webapp_core.py so the page never promises more than
+# the app will accept.
+maxUploadSize = 15
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Hides the Deploy button and the running indicator, so screenshots and the
+# page itself look like a product rather than a developer tool.
+toolbarMode = "minimal"

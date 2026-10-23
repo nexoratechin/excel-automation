@@ -20,6 +20,17 @@ throughout.
 
 The original file is never modified.
 
+## What it looks like
+
+The client opens a link, drags a file in, and gets the cleaned workbook back.
+
+![Upload page](docs/screenshot-upload.png)
+
+After clicking *Clean this file*, they see exactly what changed before they
+download anything:
+
+![Results](docs/screenshot-results.png)
+
 ## Two ways to use it
 
 **Web app** — the client uploads a file in the browser and downloads the cleaned
