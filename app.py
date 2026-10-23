@@ -196,6 +196,13 @@ try:
 except ConfigError as exc:
     st.error(str(exc))
     st.stop()
+except Exception:  # noqa: BLE001 - a client must never see a traceback
+    st.error(
+        "That file could not be read. It may be password protected, or saved in "
+        "a format that is only partly valid. Opening it in Excel and using "
+        "**File > Save As > Excel Workbook (.xlsx)** almost always fixes it."
+    )
+    st.stop()
 
 if st.session_state.get("result_for") not in (None, fingerprint):
     reset_result()

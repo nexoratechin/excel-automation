@@ -362,6 +362,11 @@ message lists the columns it can see.
 **CSV looks garbled.** Encoding is auto-detected (UTF-8, UTF-8-BOM, Windows-1252,
 Latin-1). If a file is still wrong, re-save it as UTF-8 CSV.
 
+**A CSV will not open at all.** A quote mark in the wrong place (often a name
+typed as `"Rahul" Sharma`) breaks the whole file. The reader tries a forgiving
+engine first and a strict one second; if both fail you get a plain message
+instead of a traceback. Re-saving it from Excel as `.xlsx` always works.
+
 **Large files.** A 100,000-row file takes roughly 20 seconds on a normal laptop.
 Reading and writing are streamed by openpyxl, so memory stays modest.
 
