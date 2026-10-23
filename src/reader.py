@@ -65,18 +65,44 @@ def _read_csv(path: Path, header_row: int) -> pd.DataFrame:
                 sample = fh.read(8192)
                 fh.seek(0)
                 dialect = _sniff(sample)
-                return pd.read_csv(
-                    fh,
-                    sep=dialect.delimiter,
-                    header=header_row - 1,
-                    dtype=str,
-                    skip_blank_lines=True,
-                    engine="python",
-                )
+                return _parse_csv(fh, dialect.delimiter, header_row)
         except UnicodeDecodeError as exc:
             last_error = exc
             continue
     raise ConfigError(f"Could not decode {path.name}: {last_error}")
+
+
+def _parse_csv(handle, delimiter: str, header_row: int) -> pd.DataFrame:
+    """Parse with the fast C engine first, then pandas' stricter Python engine.
+
+    A stray quote such as ``"Rahul" Sharma`` is accepted by the C engine and
+    rejected by the Python engine (``',' expected after '"'``), so trying C
+    first turns a hard failure into a normal read.
+    """
+    parser_error: Exception | None = None
+    for engine in ("c", "python"):
+        handle.seek(0)
+        try:
+            return pd.read_csv(
+                handle,
+                sep=delimiter,
+                header=header_row - 1,
+                dtype=str,
+                skip_blank_lines=True,
+                engine=engine,
+            )
+        except pd.errors.EmptyDataError as exc:
+            raise ConfigError("That file is empty - there is nothing to clean.") from exc
+        except pd.errors.ParserError as exc:
+            parser_error = exc
+            continue
+
+    raise ConfigError(
+        "This CSV file could not be read. A quote mark in the wrong place breaks "
+        "the whole file, and neither reader could recover it.\n\n"
+        "Fix: open it in Excel and use File > Save As > Excel Workbook (.xlsx). "
+        "Excel files never have this problem."
+    ) from parser_error
 
 
 def _sniff(sample: str) -> csv.Dialect:

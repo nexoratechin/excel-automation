@@ -80,6 +80,29 @@ def test_read_table_semicolon_csv(tmp_path):
     assert df.iloc[0]["Email"] == "rahul@gmail.com"
 
 
+def test_csv_with_a_stray_quote_still_reads(tmp_path):
+    # '"Rahul" Sharma' makes pandas' Python engine fail with
+    # "',' expected after '"'". The C engine copes, so the file must load.
+    src = tmp_path / "quoted.csv"
+    src.write_text('Name,Email Address\n"Rahul" Sharma,rahul@gmail.com\n', encoding="utf-8")
+    df = read_table(src)
+    assert len(df) == 1
+    assert "Sharma" in df.iloc[0]["Name"]
+
+
+def test_unrecoverable_csv_raises_a_readable_error(tmp_path):
+    # An unterminated quote breaks both engines.
+    src = tmp_path / "broken.csv"
+    src.write_text('Name,Email\nRahul,"rahul@gmail.com\n', encoding="utf-8")
+    with pytest.raises(ConfigError) as exc:
+        read_table(src)
+    message = str(exc.value)
+    assert "CSV file could not be read" in message
+    assert "Save As" in message
+    assert "ParserError" not in message
+    assert "input.csv" not in message
+
+
 def test_read_table_rejects_unknown_extension(tmp_path):
     src = tmp_path / "notes.docx"
     src.write_text("hello", encoding="utf-8")
