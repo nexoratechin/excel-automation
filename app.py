@@ -79,7 +79,7 @@ st.success(
 )
 
 with st.expander("Look at the first rows"):
-    st.dataframe(info.preview, use_container_width=True, hide_index=True)
+    st.dataframe(info.preview, width="stretch", hide_index=True)
 
 options = ["(none)"] + list(info.columns)
 email_index = options.index(info.email_guess) if info.email_guess in options else 0
@@ -117,7 +117,7 @@ with st.form("settings"):
     )
 
     submitted = st.form_submit_button(
-        "Clean this file", type="primary", use_container_width=True
+        "Clean this file", type="primary", width="stretch"
     )
 
 if submitted:
@@ -180,7 +180,7 @@ if result is not None:
         file_name=f"{Path(uploaded.name).stem}_cleaned.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
 
     if result.rejected_total:
@@ -189,7 +189,7 @@ if result is not None:
                 "Nothing was deleted silently. Every one of these is on the "
                 "Rejected sheet in the downloaded file, with its reason."
             )
-            st.dataframe(result.rejected_preview, use_container_width=True, hide_index=True)
+            st.dataframe(result.rejected_preview, width="stretch", hide_index=True)
     else:
         st.info("No rows were rejected. Your file was already clean.")
 
