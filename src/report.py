@@ -9,7 +9,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .cleaner import CleanResult
+from .cleaner import CHANGE_LIMIT, CleanResult
 from .config import Config
 
 HEADER_FILL = PatternFill("solid", fgColor="1F3864")
@@ -31,12 +31,14 @@ def write_workbook(result: CleanResult, cfg: Config, out_path: str | Path) -> Pa
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
         result.cleaned.to_excel(writer, sheet_name="Cleaned", index=False)
         result.rejected.to_excel(writer, sheet_name="Rejected", index=False)
+        result.changes.to_excel(writer, sheet_name="Changes", index=False)
 
         report = writer.book.create_sheet("Report", 0)
         _fill_report(report, result, cfg)
 
         _style_data_sheet(writer.sheets["Cleaned"])
         _style_data_sheet(writer.sheets["Rejected"], reason_column=2)
+        _style_data_sheet(writer.sheets["Changes"])
         _style_report(report)
         writer.book.active = 0
 
@@ -70,6 +72,7 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
         ("Rows rejected", stats.rejected, BAD_FONT if stats.rejected else GOOD_FONT),
         ("Duplicates removed", stats.duplicates_removed, BAD_FONT if stats.duplicates_removed else None),
         ("Blank rows dropped", stats.blank_rows, None),
+        ("Cells cleaned", stats.cells_cleaned, GOOD_FONT if stats.cells_cleaned else None),
         ("Invalid emails", stats.invalid_email, BAD_FONT if stats.invalid_email else None),
         ("Invalid phone numbers", stats.invalid_phone, BAD_FONT if stats.invalid_phone else None),
         ("Missing required fields", stats.missing_required, BAD_FONT if stats.missing_required else None),
@@ -91,12 +94,36 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
             _write(ws, row, 2, count, border=True).alignment = Alignment(horizontal="right")
             row += 1
 
+    if stats.fix_counts:
+        row += 1
+        _write(ws, row, 1, "What was fixed", SECTION_FONT)
+        row += 1
+        labels = {
+            "email": "Emails normalised",
+            "phone": "Phone numbers normalised",
+            "spacing": "Extra spaces trimmed",
+            "text": "Text cleaned",
+        }
+        for kind, count in sorted(stats.fix_counts.items(), key=lambda kv: -kv[1]):
+            _write(ws, row, 1, labels.get(kind, kind), fill=LABEL_FILL, border=True)
+            _write(ws, row, 2, count, border=True).alignment = Alignment(horizontal="right")
+            row += 1
+        if result.changes_truncated:
+            _write(
+                ws,
+                row,
+                1,
+                f"(Change list capped at the first {CHANGE_LIMIT:,} cells)",
+            )
+            row += 1
+
     row += 1
     _write(ws, row, 1, "How to read this file", SECTION_FONT)
     row += 1
     notes = [
         "Cleaned - rows that passed every check, with emails and phones normalised.",
         "Rejected - nothing was deleted silently; every dropped row is listed with a reason.",
+        "Changes - every cell that was cleaned, shown before and after.",
         "Your original file has not been modified.",
     ]
     for note in notes:

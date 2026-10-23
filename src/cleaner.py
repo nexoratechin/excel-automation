@@ -13,6 +13,7 @@ Rules, in the order they are applied to each row:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -22,6 +23,8 @@ from .reader import resolve_column
 from .validators import clean_text, normalize_email, normalize_phone
 
 REASON_DUPLICATE = "duplicate"
+SPACING_RE = re.compile(r"\s+")
+CHANGE_LIMIT = 20_000
 
 
 @dataclass
@@ -36,11 +39,17 @@ class Stats:
     blank_email: int = 0
     blank_phone: int = 0
     blank_rows: int = 0
+    cells_cleaned: int = 0
     reason_counts: dict[str, int] = field(default_factory=dict)
+    fix_counts: dict[str, int] = field(default_factory=dict)
 
     def note(self, reason: str) -> None:
         head = reason.split(":")[0].split(" (")[0].strip()
         self.reason_counts[head] = self.reason_counts.get(head, 0) + 1
+
+    def note_fix(self, kind: str) -> None:
+        self.cells_cleaned += 1
+        self.fix_counts[kind] = self.fix_counts.get(kind, 0) + 1
 
 
 @dataclass
@@ -49,6 +58,8 @@ class CleanResult:
     rejected: pd.DataFrame
     stats: Stats
     mapping: dict[str, str]
+    changes: pd.DataFrame = field(default_factory=pd.DataFrame)
+    changes_truncated: bool = False
     duplicates_examples: list[str] = field(default_factory=list)
 
 
@@ -83,10 +94,12 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
     stats = Stats(total_rows=len(df))
     kept_rows: list[dict] = []
     rejected_rows: list[dict] = []
+    changes: list[dict] = []
     seen_email: dict[str, int] = {}
     seen_phone: dict[str, int] = {}
     seen_row: dict[tuple, int] = {}
     duplicate_examples: list[str] = []
+    changes_truncated = False
 
     for offset, values in enumerate(df.itertuples(index=False, name=None)):
         row_no = cfg.header_row + 1 + offset
@@ -129,6 +142,8 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
                 continue
             if not record.get(col, "").strip():
                 problems.append(f"missing required field: {col}")
+
+        row_changes = _changes_for_row(row_no, raw, record, mapping)
 
         if problems:
             stats.missing_required += sum(1 for p in problems if p.startswith("missing required"))
@@ -175,10 +190,59 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
         if phone_value:
             seen_phone.setdefault(phone_value, row_no)
         seen_row.setdefault(row_key, row_no)
+        for item in row_changes:
+            stats.note_fix(item["Fix"])
+        if changes_truncated or len(changes) + len(row_changes) > CHANGE_LIMIT:
+            changes_truncated = True
+        else:
+            changes.extend(row_changes)
         kept_rows.append(record)
 
     stats.kept = len(kept_rows)
 
     cleaned = pd.DataFrame(kept_rows, columns=columns)
     rejected = pd.DataFrame(rejected_rows, columns=["Row #", "Reason", *columns])
-    return CleanResult(cleaned, rejected, stats, mapping, duplicate_examples)
+    changes_df = pd.DataFrame(changes, columns=["Row #", "Column", "Before", "After", "Fix"])
+    return CleanResult(
+        cleaned=cleaned,
+        rejected=rejected,
+        stats=stats,
+        mapping=mapping,
+        changes=changes_df,
+        changes_truncated=changes_truncated,
+        duplicates_examples=duplicate_examples,
+    )
+
+
+def _changes_for_row(row_no: int, raw: dict, record: dict, mapping: dict) -> list[dict]:
+    """List every cell this row's cleaning actually altered.
+
+    This is the proof-of-work sheet: the client sees
+    ``+91 98765 43210 -> 9876543210`` and understands what they paid for.
+    """
+    found: list[dict] = []
+    email_col = mapping.get("email")
+    phone_col = mapping.get("phone")
+
+    for col, original in raw.items():
+        if original is None or (isinstance(original, float) and original != original):
+            before = ""
+        else:
+            before = str(original)
+        after = record.get(col, "")
+        if before == after:
+            continue
+
+        if col == email_col:
+            kind = "email"
+        elif col == phone_col:
+            kind = "phone"
+        elif SPACING_RE.sub(" ", before).strip() == after:
+            kind = "spacing"
+        else:
+            kind = "text"
+
+        found.append(
+            {"Row #": row_no, "Column": col, "Before": before, "After": after, "Fix": kind}
+        )
+    return found

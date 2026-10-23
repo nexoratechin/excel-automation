@@ -147,6 +147,59 @@ def test_keep_all_on_duplicate():
     assert result.stats.duplicates_removed == 1
 
 
+def test_changes_records_normalised_phone():
+    df = frame([("Rahul", "rahul@gmail.com", "+91 98765 43210")])
+    result = clean(df, config())
+    phone_rows = result.changes[result.changes["Column"] == "Mobile No"]
+    assert len(phone_rows) == 1
+    row = phone_rows.iloc[0]
+    assert row["Before"] == "+91 98765 43210"
+    assert row["After"] == "9876543210"
+    assert row["Fix"] == "phone"
+
+
+def test_changes_records_email_case_and_padding():
+    df = frame([("Rahul", "  Rahul@GMAIL.com ", "9876543210")])
+    result = clean(df, config())
+    row = result.changes[result.changes["Column"] == "Email Address"].iloc[0]
+    assert row["Before"] == "  Rahul@GMAIL.com "
+    assert row["After"] == "rahul@gmail.com"
+    assert row["Fix"] == "email"
+
+
+def test_changes_records_whitespace_only_edits():
+    df = frame([("  Rahul   Sharma  ", "rahul@gmail.com", "9876543210")])
+    result = clean(df, config())
+    row = result.changes[result.changes["Column"] == "Name"].iloc[0]
+    assert row["After"] == "Rahul Sharma"
+    assert row["Fix"] == "spacing"
+
+
+def test_already_clean_row_produces_no_changes():
+    df = frame([("Rahul Sharma", "rahul@gmail.com", "9876543210")])
+    result = clean(df, config())
+    assert result.changes.empty
+    assert result.stats.cells_cleaned == 0
+
+
+def test_changes_skip_rejected_rows():
+    # The phone would be fixed, but the row is thrown out for its email.
+    df = frame([("Karan", "karan@gmail", "+91 98765 43210")])
+    result = clean(df, config())
+    assert result.stats.rejected == 1
+    assert result.changes.empty
+
+
+def test_cells_cleaned_matches_change_rows():
+    df = frame([
+        ("  Rahul  ", "Rahul@GMAIL.com", "+91 98765 43210"),
+        ("Priya", "priya@yahoo.com", "9876543211"),
+    ])
+    result = clean(df, config())
+    assert result.stats.cells_cleaned == len(result.changes)
+    assert result.stats.cells_cleaned == 3  # name, email and phone for row 1; none for row 2
+
+
 def test_missing_cells_are_blank_not_the_word_nan():
     # Excel gaps arrive as NaN; str(nan) == "nan" and used to be "validated".
     df = pd.DataFrame([("Sameer", None, "9876543210")],

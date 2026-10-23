@@ -183,6 +183,14 @@ if result is not None:
         width="stretch",
     )
 
+    if result.changes_total:
+        with st.expander(f"See the {result.changes_total:,} cells that were cleaned"):
+            st.caption(
+                "Every fix is shown before and after, and listed on the "
+                "**Changes** sheet in the downloaded file."
+            )
+            st.dataframe(result.changes_preview, width="stretch", hide_index=True)
+
     if result.rejected_total:
         with st.expander(f"See the {result.rejected_total:,} rejected rows"):
             st.caption(
@@ -194,7 +202,8 @@ if result is not None:
         st.info("No rows were rejected. Your file was already clean.")
 
     st.caption(
-        "The downloaded file has three sheets: **Report**, **Cleaned** and **Rejected**."
+        "The downloaded file has four sheets: **Report**, **Cleaned**, "
+        "**Rejected** and **Changes**."
     )
 
 st.divider()

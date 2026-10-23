@@ -38,8 +38,10 @@ class ProcessResult:
     phone_col: str | None
     cleaned_preview: pd.DataFrame
     rejected_preview: pd.DataFrame
+    changes_preview: pd.DataFrame
     cleaned_total: int
     rejected_total: int
+    changes_total: int
 
 
 def _check(data: bytes, filename: str) -> str:
@@ -134,8 +136,10 @@ def process_file(
         phone_col=cfg.phone_col,
         cleaned_preview=result.cleaned.head(10),
         rejected_preview=result.rejected.head(50),
+        changes_preview=result.changes.head(50),
         cleaned_total=len(result.cleaned),
         rejected_total=len(result.rejected),
+        changes_total=len(result.changes),
     )
 
 __all__ = ["InspectResult", "ProcessResult", "inspect_file", "process_file", "MAX_BYTES"]

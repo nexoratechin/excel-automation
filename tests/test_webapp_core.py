@@ -55,7 +55,7 @@ class TestProcess:
         path.write_bytes(result.workbook)
 
         assert path.read_bytes()[:2] == b"PK"  # xlsx is a zip
-        assert load_workbook(path).sheetnames == ["Report", "Cleaned", "Rejected"]
+        assert load_workbook(path).sheetnames == ["Report", "Cleaned", "Rejected", "Changes"]
 
     def test_counts_are_correct(self):
         result = process_file(dirty_csv(), "contacts.csv")
