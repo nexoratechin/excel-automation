@@ -14,7 +14,7 @@ throughout.
 
 | | |
 |---|---|
-| **Reads** | `.xlsx`, `.xlsm`, `.csv` (comma, semicolon, tab or pipe separated) |
+| **Reads** | `.xlsx`, `.xlsm`, `.csv` (comma, semicolon, tab or pipe separated), or a `.zip` of up to 20 files |
 | **Cleans** | trims spaces, removes invisible characters, normalises case and phone formats |
 | **Validates** | email syntax, phone numbers against a country's numbering rules |
 | **De-duplicates** | same email *or* same phone number, keeping the first occurrence |
@@ -63,6 +63,22 @@ What the page does:
 
 Guards: 15 MB limit, `.xlsx` / `.xlsm` / `.csv` only, and every error is shown as
 a plain sentence rather than a stack trace.
+
+### Batch mode
+
+Upload a `.zip` instead of a single file and every spreadsheet inside it is
+cleaned in one pass. This is what a monthly client actually sends — a folder of
+leads, not one file.
+
+![Batch results](docs/screenshot-batch.png)
+
+- up to 20 files per ZIP, 15 MB each, 60 MB total once unpacked
+- columns are detected **per file**, so folders with different layouts work
+- one bad file never stops the rest; it is marked as failed and skipped
+- the download is one ZIP holding every cleaned workbook plus `batch_summary.csv`
+- `.txt`, images, `__MACOSX` folders and `.DS_Store` are ignored
+- nothing is extracted to disk, so a malicious path inside the archive has
+  nothing to escape into
 
 Deploy it free on [Streamlit Community Cloud](https://share.streamlit.io) by
 pointing it at this repo and `app.py`; `requirements.txt` already includes
@@ -265,7 +281,8 @@ python -m pytest
 python scripts/make_sample.py    # regenerate data/sample_dirty.xlsx
 ```
 
-103 tests cover the validators, the cleaning rules, column detection, the web
+130 tests cover the validators, the cleaning rules, column detection, batch
+archives, the web
 app's processing path, and the full file-in/file-out flow. The three app smoke
 tests skip automatically if Streamlit is not installed.
 
@@ -275,6 +292,7 @@ run_web.bat        starts the web app, creates its environment on first run
 src/
   main.py          CLI, argument handling, summary output
   webapp_core.py   web app logic, testable without Streamlit
+  batch.py         ZIP in, ZIP of cleaned workbooks out
   config.py        Config dataclass + validation
   reader.py        xlsx/csv loading, column detection, encoding fallback
   validators.py    email and phone normalisation
@@ -284,7 +302,7 @@ scripts/
   make_sample.py   generates the deliberately messy demo file
 tests/
   test_validators.py, test_cleaner.py, test_reader.py,
-  test_webapp_core.py, test_end_to_end.py, test_app_smoke.py
+  test_webapp_core.py, test_batch.py, test_end_to_end.py, test_app_smoke.py
 ```
 
 ## Troubleshooting
