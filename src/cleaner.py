@@ -20,11 +20,24 @@ import pandas as pd
 
 from .config import Config
 from .reader import resolve_column
-from .validators import clean_text, normalize_email, normalize_phone
+from .validators import (
+    clean_text,
+    normalize_email,
+    normalize_gstin,
+    normalize_pan,
+    normalize_phone,
+    normalize_pincode,
+)
 
 REASON_DUPLICATE = "duplicate"
 SPACING_RE = re.compile(r"\s+")
 CHANGE_LIMIT = 20_000
+
+BUSINESS_FIELDS = (
+    ("gstin", "gstin_col", normalize_gstin, "invalid GSTIN"),
+    ("pan", "pan_col", normalize_pan, "invalid PAN"),
+    ("pincode", "pincode_col", normalize_pincode, "invalid pincode"),
+)
 
 
 @dataclass
@@ -40,6 +53,9 @@ class Stats:
     blank_phone: int = 0
     blank_rows: int = 0
     cells_cleaned: int = 0
+    invalid_gstin: int = 0
+    invalid_pan: int = 0
+    invalid_pincode: int = 0
     reason_counts: dict[str, int] = field(default_factory=dict)
     fix_counts: dict[str, int] = field(default_factory=dict)
 
@@ -75,6 +91,10 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
         mapping["phone"] = resolve_column(df, cfg.phone_col, "phone")
     if cfg.name_col:
         mapping["name"] = resolve_column(df, cfg.name_col, "name")
+    for key, attr, _fn, _label in BUSINESS_FIELDS:
+        wanted = getattr(cfg, attr)
+        if wanted:
+            mapping[key] = resolve_column(df, wanted, key)
     for col in cfg.required:
         if col in df.columns:
             continue
@@ -137,8 +157,24 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
             else:
                 record[mapping["phone"]] = phone or ""
 
+        for key, _attr, check, label in BUSINESS_FIELDS:
+            col = mapping.get(key)
+            if not col or col not in position:
+                continue
+            normalized, error = check(values[position[col]])
+            if error == "empty":
+                record[col] = ""
+                if col in required_pos:
+                    problems.append(f"missing required field: {col}")
+            elif error:
+                counter = f"invalid_{key}"
+                setattr(stats, counter, getattr(stats, counter) + 1)
+                problems.append(f"{label}: {record[col]!r}")
+            else:
+                record[col] = normalized or ""
+
         for col in cfg.required:
-            if col in (mapping.get("email"), mapping.get("phone")):
+            if col in _handled_columns(mapping):
                 continue
             if not record.get(col, "").strip():
                 problems.append(f"missing required field: {col}")
@@ -214,6 +250,15 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
     )
 
 
+def _handled_columns(mapping: dict) -> set[str]:
+    """Columns already validated above, so the required check does not repeat."""
+    return {
+        mapping[key]
+        for key in ("email", "phone", "gstin", "pan", "pincode")
+        if key in mapping
+    }
+
+
 def _changes_for_row(row_no: int, raw: dict, record: dict, mapping: dict) -> list[dict]:
     """List every cell this row's cleaning actually altered.
 
@@ -237,6 +282,12 @@ def _changes_for_row(row_no: int, raw: dict, record: dict, mapping: dict) -> lis
             kind = "email"
         elif col == phone_col:
             kind = "phone"
+        elif col == mapping.get("gstin"):
+            kind = "gstin"
+        elif col == mapping.get("pan"):
+            kind = "pan"
+        elif col == mapping.get("pincode"):
+            kind = "pincode"
         elif SPACING_RE.sub(" ", before).strip() == after:
             kind = "spacing"
         else:

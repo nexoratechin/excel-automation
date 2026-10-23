@@ -205,6 +205,33 @@ with st.form("settings"):
         help="Rows missing these will be moved to the Rejected sheet. Leave empty to allow blanks.",
     )
 
+    with st.expander("Indian business fields (optional)"):
+        st.caption(
+            "GSTIN and PAN are checked for format only — not verified with the "
+            "GST portal. Invalid values send that row to Rejected."
+        )
+        first_col, second_col, third_col = st.columns(3)
+        with first_col:
+            gstin_choice = st.selectbox(
+                "GSTIN column",
+                options,
+                index=options.index(info.gstin_guess) if info.gstin_guess in options else 0,
+            )
+        with second_col:
+            pan_choice = st.selectbox(
+                "PAN column",
+                options,
+                index=options.index(info.pan_guess) if info.pan_guess in options else 0,
+            )
+        with third_col:
+            pincode_choice = st.selectbox(
+                "Pincode column",
+                options,
+                index=options.index(info.pincode_guess)
+                if info.pincode_guess in options
+                else 0,
+            )
+
     left, right = st.columns(2)
     with left:
         country_label = st.selectbox("Phone numbers are from", COUNTRY_LABELS)
@@ -236,6 +263,9 @@ if submitted:
                 phone_format=phone_format,
                 keep_duplicates=keep_duplicates,
                 header_row=header_row,
+                gstin_col=None if gstin_choice == "(none)" else gstin_choice,
+                pan_col=None if pan_choice == "(none)" else pan_choice,
+                pincode_col=None if pincode_choice == "(none)" else pincode_choice,
             )
         except ConfigError as exc:
             st.error(str(exc))

@@ -14,7 +14,7 @@ import pandas as pd
 
 from .cleaner import Stats, clean
 from .config import Config, ConfigError
-from .reader import guess_columns, read_table
+from .reader import guess_business_columns, guess_columns, read_table
 from .report import write_workbook
 
 ALLOWED_SUFFIXES = {".xlsx", ".xlsm", ".csv", ".txt", ".tsv"}
@@ -28,6 +28,9 @@ class InspectResult:
     phone_guess: str | None
     preview: pd.DataFrame
     row_count: int
+    gstin_guess: str | None = None
+    pan_guess: str | None = None
+    pincode_guess: str | None = None
 
 
 @dataclass
@@ -78,12 +81,16 @@ def inspect_file(data: bytes, filename: str, header_row: int = 1) -> InspectResu
     """Read the file and suggest columns, without cleaning anything."""
     df = _read(data, filename, header_row)
     email_guess, phone_guess = guess_columns(df, "IN", "local")
+    gstin_guess, pan_guess, pincode_guess = guess_business_columns(df)
     return InspectResult(
         columns=[str(c) for c in df.columns],
         email_guess=email_guess,
         phone_guess=phone_guess,
         preview=df.head(5),
         row_count=len(df),
+        gstin_guess=gstin_guess,
+        pan_guess=pan_guess,
+        pincode_guess=pincode_guess,
     )
 
 
@@ -99,6 +106,9 @@ def process_file(
     keep_duplicates: bool = False,
     keep_blank_rows: bool = False,
     header_row: int = 1,
+    gstin_col: str | None = None,
+    pan_col: str | None = None,
+    pincode_col: str | None = None,
 ) -> ProcessResult:
     """Clean an uploaded file and return the finished workbook as bytes."""
     df = _read(data, filename, header_row)
@@ -115,12 +125,21 @@ def process_file(
         phone_format=phone_format,
         keep_all_on_duplicate=keep_duplicates,
         drop_blank_rows=not keep_blank_rows,
+        gstin_col=gstin_col or None,
+        pan_col=pan_col or None,
+        pincode_col=pincode_col or None,
     )
 
     if cfg.email_col is None or cfg.phone_col is None:
         guess_email, guess_phone = guess_columns(df, country, phone_format)
         cfg.email_col = cfg.email_col or guess_email
         cfg.phone_col = cfg.phone_col or guess_phone
+
+    if cfg.gstin_col is None or cfg.pan_col is None or cfg.pincode_col is None:
+        guess_gstin, guess_pan, guess_pin = guess_business_columns(df)
+        cfg.gstin_col = cfg.gstin_col or guess_gstin
+        cfg.pan_col = cfg.pan_col or guess_pan
+        cfg.pincode_col = cfg.pincode_col or guess_pin
 
     result = clean(df, cfg)
 

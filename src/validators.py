@@ -23,6 +23,14 @@ COUNTRY_RULES = {
     "ANY": {"code": None, "length": None, "pattern": re.compile(r"^\d{6,15}$"), "label": "phone number"},
 }
 
+# 2-digit state code, 5 letters of the PAN, 4 digits, entity letter, 'Z', check char.
+GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
+PAN_RE = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
+PINCODE_RE = re.compile(r"^[1-9][0-9]{5}$")
+
+# 01-38 are the states and union territories; 97 and 99 are for online sellers.
+VALID_GST_STATE_CODES = {f"{n:02d}" for n in range(1, 39)} | {"97", "99"}
+
 
 def clean_text(value) -> str:
     """Trim, drop invisibles and non-breaking spaces, collapse inner runs.
@@ -122,3 +130,64 @@ def normalize_phone(value, country: str = "IN", phone_format: str = "local") -> 
 
 def describe_phone_rule(country: str) -> str:
     return COUNTRY_RULES[country.upper()]["label"]
+
+
+def _numeric_text(value) -> str | None:
+    """Whole numbers from Excel arrive as floats; return them without '.0'."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if not number.is_integer():
+            return None
+        return str(int(number))
+    return None
+
+
+def normalize_gstin(value) -> tuple[str | None, str | None]:
+    """Validate the 15-character GSTIN format.
+
+    Format only -- the check digit is not recomputed and nothing is looked up on
+    the GST portal, so a well-formed but fake number passes. Say so when selling.
+    """
+    text = _numeric_text(value) or clean_text(value)
+    if not text:
+        return None, "empty"
+    text = text.upper().replace(" ", "").replace("-", "")
+    if not GSTIN_RE.match(text):
+        return None, "invalid GSTIN"
+    if text[:2] not in VALID_GST_STATE_CODES:
+        return None, "invalid GSTIN"
+    return text, None
+
+
+def normalize_pan(value) -> tuple[str | None, str | None]:
+    text = _numeric_text(value) or clean_text(value)
+    if not text:
+        return None, "empty"
+    text = text.upper().replace(" ", "").replace("-", "")
+    if not PAN_RE.match(text):
+        return None, "invalid PAN"
+    return text, None
+
+
+def normalize_pincode(value) -> tuple[str | None, str | None]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        text = _numeric_text(value)
+        if text is None:
+            return None, "invalid pincode"
+    else:
+        raw = clean_text(value)
+        if not raw:
+            return None, "empty"
+        if "." in raw:
+            # 400001.0 from a numeric cell, but 400001.5 is not a pincode.
+            compact = re.sub(r"[^\d.]", "", raw)
+            if not re.fullmatch(r"\d+\.0*", compact):
+                return None, "invalid pincode"
+            text = compact.split(".")[0]
+        else:
+            text = re.sub(r"\D", "", raw)
+    if not PINCODE_RE.match(text):
+        return None, "invalid pincode"
+    return text, None

@@ -184,3 +184,40 @@ def guess_columns(
 def _key_tiebreak(col, hints: tuple[str, ...]) -> int:
     col_key = _key(col)
     return sum(1 for h in hints if h in col_key)
+
+
+GSTIN_HINTS = ("gstin", "gstno", "gstnumber", "gst")
+PAN_HINTS = ("panno", "pannumber", "pan")
+PINCODE_HINTS = ("pincode", "postalcode", "zip", "pin")
+
+
+def guess_business_columns(
+    df: pd.DataFrame, threshold: float = 0.6, sample: int = 300
+) -> tuple[str | None, str | None, str | None]:
+    """Find GSTIN, PAN and pincode columns.
+
+    Both the header and the contents must agree. Relying on either alone is
+    unsafe: "Company" contains "pan", and a column of six-digit order IDs looks
+    exactly like pincodes -- either mistake would reject good rows.
+    """
+    from .validators import clean_text, normalize_gstin, normalize_pan, normalize_pincode
+
+    def best(check, hints: tuple[str, ...]) -> str | None:
+        winner: tuple[float, str] | None = None
+        for col in df.columns:
+            if not any(h in _key(col) for h in hints):
+                continue
+            values = [clean_text(v) for v in df[col].tolist()]
+            values = [v for v in values if v][:sample]
+            if len(values) < 3:
+                continue
+            rate = sum(1 for v in values if check(v)[0]) / len(values)
+            if rate >= threshold and (winner is None or rate > winner[0]):
+                winner = (rate, str(col))
+        return winner[1] if winner else None
+
+    return (
+        best(normalize_gstin, GSTIN_HINTS),
+        best(normalize_pan, PAN_HINTS),
+        best(normalize_pincode, PINCODE_HINTS),
+    )

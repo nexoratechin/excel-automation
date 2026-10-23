@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from src.validators import clean_text, normalize_email, normalize_phone
+from src.validators import (
+    clean_text,
+    normalize_email,
+    normalize_gstin,
+    normalize_pan,
+    normalize_phone,
+    normalize_pincode,
+)
 
 
 class TestEmail:
@@ -111,3 +118,51 @@ class TestCleanText:
 
     def test_none(self):
         assert clean_text(None) == ""
+
+
+class TestGstin:
+    def test_valid(self):
+        assert normalize_gstin("27AAPFU0939F1ZV") == ("27AAPFU0939F1ZV", None)
+
+    def test_lowercase_and_spaces_are_normalised(self):
+        assert normalize_gstin(" 27aapfu0939f1zv ") == ("27AAPFU0939F1ZV", None)
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "27AAPFU0939F1Z",      # too short
+            "27AAPFU0939F1ZVX",    # too long
+            "00AAPFU0939F1ZV",     # no such state code
+            "27AAPFU0939F1",       # truncated
+            "27AAPF00939F1ZV",     # digits in the PAN block
+            "A7AAPFU0939F1ZV",     # first two must be digits
+        ],
+    )
+    def test_invalid(self, raw):
+        assert normalize_gstin(raw) == (None, "invalid GSTIN")
+
+    def test_empty(self):
+        assert normalize_gstin("") == (None, "empty")
+        assert normalize_gstin(None) == (None, "empty")
+
+
+class TestPan:
+    def test_valid(self):
+        assert normalize_pan("AAPFU0939F") == ("AAPFU0939F", None)
+
+    def test_lowercase_is_normalised(self):
+        assert normalize_pan(" aapfu0939f ") == ("AAPFU0939F", None)
+
+    @pytest.mark.parametrize("raw", ["AAPFU0939", "AAPF0939F", "AAPFU09391", "1234567890"])
+    def test_invalid(self, raw):
+        assert normalize_pan(raw) == (None, "invalid PAN")
+
+
+class TestPincode:
+    @pytest.mark.parametrize("raw", ["400001", "400 001", 400001, 400001.0, "400001.0"])
+    def test_valid(self, raw):
+        assert normalize_pincode(raw) == ("400001", None)
+
+    @pytest.mark.parametrize("raw", ["040001", "40001", "4000012", "abcde1", 400001.5])
+    def test_invalid(self, raw):
+        assert normalize_pincode(raw) == (None, "invalid pincode")

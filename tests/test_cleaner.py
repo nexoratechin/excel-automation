@@ -200,6 +200,56 @@ def test_cells_cleaned_matches_change_rows():
     assert result.stats.cells_cleaned == 3  # name, email and phone for row 1; none for row 2
 
 
+def test_business_fields_reject_and_keep_correctly():
+    df = pd.DataFrame(
+        [
+            ("Good", "good@gmail.com", "9876543210", "27AAPFU0939F1ZV", "400001"),
+            ("Bad GST", "b@gmail.com", "9876543211", "27AAPFU0939F1Z", "400002"),
+            ("Bad pin", "c@gmail.com", "9876543212", "27AAPFU0939F1ZV", "040003"),
+        ],
+        columns=["Name", "Email Address", "Mobile No", "GSTIN", "Pincode"],
+    )
+    result = clean(df, config(gstin_col="GSTIN", pincode_col="Pincode"))
+    assert result.stats.kept == 1
+    assert result.stats.invalid_gstin == 1
+    assert result.stats.invalid_pincode == 1
+    reasons = " ".join(result.rejected["Reason"])
+    assert "invalid GSTIN" in reasons
+    assert "invalid pincode" in reasons
+
+
+def test_blank_business_field_is_allowed():
+    df = pd.DataFrame(
+        [("A", "a@gmail.com", "9876543210", "", "400001")],
+        columns=["Name", "Email Address", "Mobile No", "GSTIN", "Pincode"],
+    )
+    result = clean(df, config(gstin_col="GSTIN", pincode_col="Pincode"))
+    assert result.stats.kept == 1
+    assert result.stats.invalid_gstin == 0
+
+
+def test_gstin_normalisation_is_logged():
+    df = pd.DataFrame(
+        [("A", "a@gmail.com", "9876543210", "27aapfu0939f1zv")],
+        columns=["Name", "Email Address", "Mobile No", "GSTIN"],
+    )
+    result = clean(df, config(gstin_col="GSTIN"))
+    assert result.cleaned.iloc[0]["GSTIN"] == "27AAPFU0939F1ZV"
+    change = result.changes[result.changes["Column"] == "GSTIN"].iloc[0]
+    assert change["Fix"] == "gstin"
+    assert change["After"] == "27AAPFU0939F1ZV"
+
+
+def test_required_business_column_is_not_reported_twice():
+    df = pd.DataFrame(
+        [("A", "a@gmail.com", "9876543210", "")],
+        columns=["Name", "Email Address", "Mobile No", "GSTIN"],
+    )
+    result = clean(df, config(gstin_col="GSTIN", required=["Name", "GSTIN"]))
+    assert result.stats.kept == 0
+    assert result.rejected.iloc[0]["Reason"].count("missing required") == 1
+
+
 def test_missing_cells_are_blank_not_the_word_nan():
     # Excel gaps arrive as NaN; str(nan) == "nan" and used to be "validated".
     df = pd.DataFrame([("Sameer", None, "9876543210")],

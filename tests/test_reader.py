@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from src.config import ConfigError
-from src.reader import guess_columns, read_table, resolve_column
+from src.reader import guess_business_columns, guess_columns, read_table, resolve_column
 
 
 def test_guess_uses_content_not_header_names():
@@ -85,3 +85,33 @@ def test_read_table_rejects_unknown_extension(tmp_path):
     src.write_text("hello", encoding="utf-8")
     with pytest.raises(ConfigError, match="Unsupported file type"):
         read_table(src)
+
+
+class TestBusinessColumnDetection:
+    def test_detects_gstin_by_header_and_content(self):
+        df = pd.DataFrame({"GSTIN": ["27AAPFU0939F1ZV", "29AAGCB7383J1Z8", "07AAACC1206D1ZI"]})
+        gstin, _pan, _pin = guess_business_columns(df)
+        assert gstin == "GSTIN"
+
+    def test_does_not_mistake_six_digit_ids_for_pincodes(self):
+        # "Order ID" must not be validated as a pincode: half of these would be
+        # rejected for a leading zero.
+        df = pd.DataFrame({"Order ID": ["012345", "098765", "043210", "011111"]})
+        _g, _p, pin = guess_business_columns(df)
+        assert pin is None
+
+    def test_does_not_treat_a_company_column_as_pan(self):
+        df = pd.DataFrame({"Company": ["Acme Pvt Ltd", "Beta Traders", "Gamma LLP"]})
+        _g, pan, _pin = guess_business_columns(df)
+        assert pan is None
+
+    def test_content_must_agree_with_the_header(self):
+        # A GSTIN header with rubbish values must not be selected.
+        df = pd.DataFrame({"GSTIN": ["n/a", "unknown", "pending", "none"]})
+        gstin, _p, _pin = guess_business_columns(df)
+        assert gstin is None
+
+    def test_detects_pincode(self):
+        df = pd.DataFrame({"Pincode": ["400001", "110001", "560001", "600001"]})
+        _g, _p, pin = guess_business_columns(df)
+        assert pin == "Pincode"
