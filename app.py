@@ -7,6 +7,7 @@ The cleaning itself lives in src/, so this file is only widgets and wording.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import streamlit as st
@@ -30,8 +31,8 @@ st.caption(
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
-def cached_inspect(data: bytes, filename: str) -> object:
-    return inspect_file(data, filename)
+def cached_inspect(data: bytes, filename: str, header_row: int = 1) -> object:
+    return inspect_file(data, filename, header_row)
 
 
 def reset_result() -> None:
@@ -63,14 +64,28 @@ if uploaded is None:
     st.stop()
 
 data = uploaded.getvalue()
+# The filename is not enough: clients upload "contacts.xlsx" every month, and a
+# stale result must never be offered for a different file with the same name.
+fingerprint = hashlib.sha256(data).hexdigest()[:16]
+
+with st.expander("My column headers are not on row 1"):
+    header_row = int(
+        st.number_input(
+            "Header row",
+            min_value=1,
+            max_value=50,
+            value=1,
+            help="Leave at 1 unless there is a title or logo row above the headers.",
+        )
+    )
 
 try:
-    info = cached_inspect(data, uploaded.name)
+    info = cached_inspect(data, uploaded.name, header_row)
 except ConfigError as exc:
     st.error(str(exc))
     st.stop()
 
-if st.session_state.get("result_for") not in (None, uploaded.name):
+if st.session_state.get("result_for") not in (None, fingerprint):
     reset_result()
 
 st.success(
@@ -140,6 +155,7 @@ if submitted:
                 country=country,
                 phone_format=phone_format,
                 keep_duplicates=keep_duplicates,
+                header_row=header_row,
             )
         except ConfigError as exc:
             st.error(str(exc))
@@ -152,7 +168,7 @@ if submitted:
             st.stop()
 
     st.session_state["result"] = result
-    st.session_state["result_for"] = uploaded.name
+    st.session_state["result_for"] = fingerprint
     note = []
     if result.email_col:
         note.append(f"emails from '{result.email_col}'")

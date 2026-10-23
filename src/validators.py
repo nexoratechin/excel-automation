@@ -57,14 +57,40 @@ def normalize_email(value) -> tuple[str | None, str | None]:
 
 
 def normalize_phone(value, country: str = "IN", phone_format: str = "local") -> tuple[str | None, str | None]:
-    """Return (normalized_phone, error). One of the two is always None."""
-    raw = clean_text(value)
-    if not raw:
+    """Return (normalized_phone, error). One of the two is always None.
+
+    Excel stores every number as a float, so a phone column always arrives as
+    ``9876543210.0``. Stripping non-digits from that would produce
+    ``98765432100`` and then silently keep the last ten digits -- a different,
+    valid-looking number. Numeric input is therefore converted properly, and
+    anything with a real fractional part or scientific notation is rejected
+    rather than guessed at.
+    """
+    if value is None or (isinstance(value, float) and value != value):
         return None, "empty"
 
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        number = float(value)
+        if not number.is_integer():
+            return None, "invalid phone"
+        raw = str(int(number))
+    else:
+        raw = clean_text(value)
+        if not raw:
+            return None, "empty"
+        if "e" in raw.lower():
+            # 9.87654E+09 has already lost the real digits upstream.
+            return None, "invalid phone"
+        compact = re.sub(r"[^\d.]", "", raw)
+        if "." in compact:
+            if not re.fullmatch(r"\d+\.0*", compact):
+                return None, "invalid phone"
+            compact = compact.split(".")[0]
+        if not compact:
+            return None, "invalid phone"
+        raw = compact
+
     rule = COUNTRY_RULES[country.upper()]
-    had_plus = raw.startswith("+")
-    # Keep digits only: strips spaces, dashes, brackets, dots, extensions text.
     digits = re.sub(r"\D", "", raw)
     if not digits:
         return None, "invalid phone"
