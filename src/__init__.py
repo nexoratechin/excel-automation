@@ -1,7 +1,7 @@
 """Excel contact-list cleaner.
 
 Reads a messy spreadsheet, normalises and validates email addresses and phone
-numbers, removes duplicates, and writes a three-sheet report workbook.
+numbers, removes duplicates, and writes a four-sheet report workbook.
 
 Run it with ``python -m src.main --help``.
 """

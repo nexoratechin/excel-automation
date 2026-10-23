@@ -1,5 +1,7 @@
 # Excel Cleanup Tool
 
+![tests](https://github.com/nexoratechin/excel-automation/actions/workflows/tests.yml/badge.svg)
+
 Turns a messy Excel or CSV contact list into a clean, import-ready file — and
 shows the client exactly what it changed and what it threw away.
 
@@ -57,7 +59,7 @@ What the page does:
 - lets them override the columns, the country, and the phone format
 - shows the counts (clean rows, duplicates, bad emails, bad phones) and the
   rejected rows **before** they download anything
-- hands back the same three-sheet workbook as the command line
+- hands back the same four-sheet workbook as the command line
 
 Guards: 15 MB limit, `.xlsx` / `.xlsm` / `.csv` only, and every error is shown as
 a plain sentence rather than a stack trace.
@@ -106,7 +108,7 @@ Output lands next to the input file in an `output` folder.
 
 ## The output workbook
 
-Three sheets, report first, because that is what the client actually looks at.
+Four sheets, report first, because that is what the client actually looks at.
 
 **Report** — one screen answering "what did you do to my file?":
 
@@ -130,6 +132,23 @@ original row number and a reason such as:
 
 This sheet is the difference between "a script" and "a service": the client can
 audit the result and trusts it, which is what earns repeat work.
+
+**Changes** — every cell that was actually altered, before and after:
+
+```
+Row #  Column        Before                  After             Fix
+3      Email Address Priya.Patel@Yahoo.com   priya.patel@yahoo.com  email
+3      Mobile No     +91 98765 43211         9876543211        phone
+4      Mobile No     09876543212             9876543212        phone
+6      Name            Vikram Singh           Vikram Singh      spacing
+```
+
+This is the sheet that justifies a monthly fee. The Rejected sheet says what was
+thrown away; this one says what was *fixed*, cell by cell. "59 rows, 8 cells
+cleaned" is a receipt. "I cleaned your file" is a claim.
+
+The list is capped at the first 20,000 changed cells so a huge file cannot
+produce an unusable workbook; the Report sheet says so when the cap is hit.
 
 ## What counts as a duplicate
 
@@ -246,7 +265,7 @@ python -m pytest
 python scripts/make_sample.py    # regenerate data/sample_dirty.xlsx
 ```
 
-97 tests cover the validators, the cleaning rules, column detection, the web
+103 tests cover the validators, the cleaning rules, column detection, the web
 app's processing path, and the full file-in/file-out flow. The three app smoke
 tests skip automatically if Streamlit is not installed.
 
@@ -260,7 +279,7 @@ src/
   reader.py        xlsx/csv loading, column detection, encoding fallback
   validators.py    email and phone normalisation
   cleaner.py       per-row checks, de-duplication, rejection reasons
-  report.py        styled three-sheet workbook
+  report.py        styled four-sheet workbook
 scripts/
   make_sample.py   generates the deliberately messy demo file
 tests/
