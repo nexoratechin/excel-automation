@@ -16,7 +16,7 @@ throughout.
 |---|---|
 | **Reads** | `.xlsx`, `.xlsm`, `.csv` (comma, semicolon, tab or pipe separated), or a `.zip` of up to 20 files |
 | **Cleans** | trims spaces, removes invisible characters, normalises case and phone formats |
-| **Validates** | email syntax, phone numbers against a country's numbering rules |
+| **Validates** | email syntax, phone numbers against a country's numbering rules, Indian GSTIN / PAN / pincode formats |
 | **De-duplicates** | same email *or* same phone number, keeping the first occurrence |
 | **Reports** | a styled workbook with a summary, the cleaned rows, and every rejected row with its reason |
 
@@ -207,6 +207,30 @@ Column names are matched ignoring case and spacing, so `Email Address`,
 non-empty, or the row is rejected. Without it, a blank email or phone is allowed
 through — it is reported under "blank emails (allowed)" rather than deleted.
 
+### Indian business fields
+
+GSTIN, PAN and pincode columns are optional and validated when present:
+
+```bash
+python -m src.main --input raw.xlsx \
+  --gstin-col "GSTIN" --pan-col "PAN" --pincode-col "Pincode" \
+  --out output/clean.xlsx
+```
+
+| Field | Rule |
+|---|---|
+| GSTIN | 15 characters, valid state code (01–38, 97, 99), `NN AAAAA NNNN A A Z A` |
+| PAN | `AAAAA9999A`, case-insensitive in the source |
+| Pincode | exactly 6 digits, first digit 1–9 |
+
+They are auto-detected only when **both** the header and the contents agree, so
+an `Order ID` column of six-digit numbers is never mistaken for pincodes and a
+`Company` column is never mistaken for PAN.
+
+**Format only.** The GSTIN check digit is not recomputed and nothing is looked
+up on the GST portal, so a well-formed fake number passes. Say that plainly when
+selling it — overpromising verification is how you get refunds.
+
 ### Config files
 
 For repeat work, save the mapping and reuse it. `config/sample.json` is a
@@ -262,6 +286,9 @@ Indian mobiles must start with 6–9. `--phone-format local` writes 10 digits,
 | `--email-col` | auto | email column header |
 | `--phone-col` | auto | phone column header |
 | `--name-col` | auto | name column header |
+| `--gstin-col` | auto | GSTIN column header |
+| `--pan-col` | auto | PAN column header |
+| `--pincode-col` | auto | pincode column header |
 | `--required` | none | comma-separated must-not-be-empty columns |
 | `--country` | `IN` | `IN`, `US` or `ANY` |
 | `--phone-format` | `local` | `local`, `e164` or `digits` |
@@ -281,10 +308,9 @@ python -m pytest
 python scripts/make_sample.py    # regenerate data/sample_dirty.xlsx
 ```
 
-130 tests cover the validators, the cleaning rules, column detection, batch
-archives, the web
-app's processing path, and the full file-in/file-out flow. The three app smoke
-tests skip automatically if Streamlit is not installed.
+164 tests cover the validators, the cleaning rules, column detection, batch
+archives, the web app's processing path, and the full file-in/file-out flow. The
+three app smoke tests skip automatically if Streamlit is not installed.
 
 ```
 app.py             Streamlit front end (widgets and wording only)

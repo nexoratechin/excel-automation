@@ -61,6 +61,13 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
         rule_bits.append(f"phone column '{cfg.phone_col}'")
     if cfg.required:
         rule_bits.append(f"required: {', '.join(cfg.required)}")
+    for label, column in (
+        ("GSTIN", cfg.gstin_col),
+        ("PAN", cfg.pan_col),
+        ("pincode", cfg.pincode_col),
+    ):
+        if column:
+            rule_bits.append(f"{label} column '{column}'")
     _write(ws, 4, 2, "; ".join(rule_bits))
 
     row = 6
@@ -79,6 +86,13 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
         ("Blank emails (allowed)", stats.blank_email, None),
         ("Blank phones (allowed)", stats.blank_phone, None),
     ]
+    for column, label, count in (
+        (cfg.gstin_col, "Invalid GSTINs", stats.invalid_gstin),
+        (cfg.pan_col, "Invalid PANs", stats.invalid_pan),
+        (cfg.pincode_col, "Invalid pincodes", stats.invalid_pincode),
+    ):
+        if column:
+            summary_rows.append((label, count, BAD_FONT if count else None))
     for label, value, font in summary_rows:
         _write(ws, row, 1, label, font=None, fill=LABEL_FILL, border=True)
         cell = _write(ws, row, 2, value, font=font, border=True)
@@ -101,6 +115,9 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
         labels = {
             "email": "Emails normalised",
             "phone": "Phone numbers normalised",
+            "gstin": "GST numbers normalised",
+            "pan": "PANs normalised",
+            "pincode": "Pincodes normalised",
             "spacing": "Extra spaces trimmed",
             "text": "Text cleaned",
         }

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .cleaner import clean
 from .config import ConfigError, build_config, load_config_file
-from .reader import guess_columns, list_sheets, read_table
+from .reader import guess_business_columns, guess_columns, list_sheets, read_table
 from .report import write_workbook
 from . import __version__
 
@@ -44,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     mapping.add_argument("--email-col", help="header name of the email column")
     mapping.add_argument("--phone-col", help="header name of the phone column")
     mapping.add_argument("--name-col", help="header name of the name column")
+    mapping.add_argument("--gstin-col", help="header name of the GSTIN column")
+    mapping.add_argument("--pan-col", help="header name of the PAN column")
+    mapping.add_argument("--pincode-col", help="header name of the pincode column")
     mapping.add_argument("--required", help="comma-separated columns that must not be empty")
 
     rules = parser.add_argument_group("validation rules")
@@ -125,6 +128,18 @@ def main(argv: list[str] | None = None) -> int:
         if cfg.phone_col is None and guess_phone:
             cfg.phone_col = guess_phone
             detected.append(f"phone  '{guess_phone}'")
+
+    if cfg.gstin_col is None or cfg.pan_col is None or cfg.pincode_col is None:
+        guess_gstin, guess_pan, guess_pin = guess_business_columns(df)
+        if cfg.gstin_col is None and guess_gstin:
+            cfg.gstin_col = guess_gstin
+            detected.append(f"GSTIN  '{guess_gstin}'")
+        if cfg.pan_col is None and guess_pan:
+            cfg.pan_col = guess_pan
+            detected.append(f"PAN    '{guess_pan}'")
+        if cfg.pincode_col is None and guess_pin:
+            cfg.pincode_col = guess_pin
+            detected.append(f"pincode '{guess_pin}'")
     if cfg.email_col is None:
         print(
             "warning: no email column detected - emails were not validated. "

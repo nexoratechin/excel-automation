@@ -30,6 +30,9 @@ class Config:
     email_col: str | None = None
     phone_col: str | None = None
     name_col: str | None = None
+    gstin_col: str | None = None
+    pan_col: str | None = None
+    pincode_col: str | None = None
 
     # Columns that must be present and non-empty for a row to survive
     required: list[str] = field(default_factory=list)
@@ -78,7 +81,16 @@ class Config:
     @property
     def available_columns(self) -> list[str]:
         return list(self.required) + [
-            c for c in (self.email_col, self.phone_col, self.name_col) if c
+            c
+            for c in (
+                self.email_col,
+                self.phone_col,
+                self.name_col,
+                self.gstin_col,
+                self.pan_col,
+                self.pincode_col,
+            )
+            if c
         ]
 
 
