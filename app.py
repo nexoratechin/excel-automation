@@ -52,6 +52,28 @@ def reset_result() -> None:
     st.session_state.pop("result_note", None)
 
 
+def stat_grid(items: list[tuple[str, str]]) -> None:
+    """Compact summary cards.
+
+    st.columns stacks every column vertically on a phone, which pushed the
+    download button four screens down. A CSS grid keeps two per row on a narrow
+    screen and four on a wide one.
+    """
+    cells = "".join(
+        '<div style="background:#F7F9FC;border:1px solid #E3E8EF;border-radius:10px;'
+        'padding:10px 12px;min-width:0">'
+        f'<div style="font-size:12px;color:#5A6B7B;line-height:1.3">{label}</div>'
+        f'<div style="font-size:26px;font-weight:700;color:#1F3864;line-height:1.2">{value}</div>'
+        "</div>"
+        for label, value in items
+    )
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));'
+        f'gap:10px;margin:2px 0 14px 0">{cells}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
     """One ZIP in, one ZIP of cleaned workbooks out."""
     st.info(
@@ -96,12 +118,12 @@ def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
     st.divider()
     st.subheader("Batch finished")
 
-    first, second, third, fourth = st.columns(4)
-    first.metric("Files cleaned", f"{result.files_ok} / {len(result.outcomes)}")
-    second.metric("Rows kept", f"{result.kept_total:,}")
-    third.metric("Rows rejected", f"{result.rejected_total:,}")
-    fourth.metric("Cells cleaned", f"{result.changes_total:,}")
-
+    stat_grid([
+        ("Files cleaned", f"{result.files_ok} / {len(result.outcomes)}"),
+        ("Rows kept", f"{result.kept_total:,}"),
+        ("Rows rejected", f"{result.rejected_total:,}"),
+        ("Cells cleaned", f"{result.changes_total:,}"),
+    ])
     if result.files_failed:
         st.warning(
             f"{result.files_failed} file(s) could not be read and were skipped. "
@@ -294,11 +316,12 @@ if result is not None:
         st.caption(f"Checked {st.session_state['result_note']}. Original file untouched.")
 
     s = result.stats
-    first, second, third, fourth = st.columns(4)
-    first.metric("Clean rows", f"{result.cleaned_total:,}")
-    second.metric("Duplicates", f"{s.duplicates_removed:,}")
-    third.metric("Bad emails", f"{s.invalid_email:,}")
-    fourth.metric("Bad phones", f"{s.invalid_phone:,}")
+    stat_grid([
+        ("Clean rows", f"{result.cleaned_total:,}"),
+        ("Duplicates", f"{s.duplicates_removed:,}"),
+        ("Bad emails", f"{s.invalid_email:,}"),
+        ("Bad phones", f"{s.invalid_phone:,}"),
+    ])
 
     st.download_button(
         "Download cleaned file",

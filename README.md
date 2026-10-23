@@ -84,6 +84,22 @@ Deploy it free on [Streamlit Community Cloud](https://share.streamlit.io) by
 pointing it at this repo and `app.py`; `requirements.txt` already includes
 Streamlit.
 
+### On a phone
+
+The layout is built for a phone, not squeezed onto one: the summary becomes a
+2×2 grid and the download button stays on the same screen as the numbers.
+
+![Mobile results](docs/screenshot-mobile-results.png)
+
+Nobody needs an app store. On iPhone use **Share → Add to Home Screen**; on
+Android use the browser menu → **Add to Home screen**. That gives an icon and
+opens the same page full width.
+
+A native app was deliberately not built. The client already receives the file
+on WhatsApp, so a link is one tap and an install is five — and every future
+feature would have to be built twice. Revisit only if someone asks for offline
+use.
+
 ## Quick start (command line)
 
 ```bash
