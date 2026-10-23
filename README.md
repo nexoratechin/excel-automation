@@ -20,7 +20,42 @@ throughout.
 
 The original file is never modified.
 
-## Quick start
+## Two ways to use it
+
+**Web app** — the client uploads a file in the browser and downloads the cleaned
+one. Nothing to install on their computer.
+
+**Command line** — for your own batches, scripting, or running inside another
+tool.
+
+## Web app
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Opens at `http://localhost:8501`. Or double-click `run_web.bat`, which sets up a
+private environment in `%LOCALAPPDATA%\excel-automation-venv` on first use and
+starts the server — no terminal needed.
+
+What the page does:
+
+- reads the uploaded file and **detects the email and phone columns** by content
+- shows the first rows so the client can confirm it is the right file
+- lets them override the columns, the country, and the phone format
+- shows the counts (clean rows, duplicates, bad emails, bad phones) and the
+  rejected rows **before** they download anything
+- hands back the same three-sheet workbook as the command line
+
+Guards: 15 MB limit, `.xlsx` / `.xlsm` / `.csv` only, and every error is shown as
+a plain sentence rather than a stack trace.
+
+Deploy it free on [Streamlit Community Cloud](https://share.streamlit.io) by
+pointing it at this repo and `app.py`; `requirements.txt` already includes
+Streamlit.
+
+## Quick start (command line)
 
 ```bash
 pip install -r requirements.txt
@@ -200,21 +235,26 @@ python -m pytest
 python scripts/make_sample.py    # regenerate data/sample_dirty.xlsx
 ```
 
-77 tests cover the validators, the cleaning rules, column detection, and the
-full file-in/file-out path.
+97 tests cover the validators, the cleaning rules, column detection, the web
+app's processing path, and the full file-in/file-out flow. The three app smoke
+tests skip automatically if Streamlit is not installed.
 
 ```
+app.py             Streamlit front end (widgets and wording only)
+run_web.bat        starts the web app, creates its environment on first run
 src/
-  main.py        CLI, argument handling, summary output
-  config.py      Config dataclass + validation
-  reader.py      xlsx/csv loading, column detection, encoding fallback
-  validators.py  email and phone normalisation
-  cleaner.py     per-row checks, de-duplication, rejection reasons
-  report.py      styled three-sheet workbook
+  main.py          CLI, argument handling, summary output
+  webapp_core.py   web app logic, testable without Streamlit
+  config.py        Config dataclass + validation
+  reader.py        xlsx/csv loading, column detection, encoding fallback
+  validators.py    email and phone normalisation
+  cleaner.py       per-row checks, de-duplication, rejection reasons
+  report.py        styled three-sheet workbook
 scripts/
-  make_sample.py generates the deliberately messy demo file
+  make_sample.py   generates the deliberately messy demo file
 tests/
-  test_validators.py, test_cleaner.py, test_reader.py, test_end_to_end.py
+  test_validators.py, test_cleaner.py, test_reader.py,
+  test_webapp_core.py, test_end_to_end.py, test_app_smoke.py
 ```
 
 ## Troubleshooting
@@ -234,6 +274,17 @@ Latin-1). If a file is still wrong, re-save it as UTF-8 CSV.
 
 **Large files.** A 100,000-row file takes roughly 20 seconds on a normal laptop.
 Reading and writing are streamed by openpyxl, so memory stays modest.
+
+**Streamlit will not install next to Google AI packages.** Streamlit needs
+`protobuf>=5.26`, while some `google-generativeai` setups pin protobuf below 5.
+Those cannot share one environment. Use `run_web.bat`, which keeps the web app's
+packages in `%LOCALAPPDATA%\excel-automation-venv` and leaves your main Python
+untouched.
+
+**`run_web.bat` cannot create the environment.** This project folder is nested
+deeply enough that Windows hits its 260-character path limit. The launcher puts
+the environment in `%LOCALAPPDATA%` to avoid that; if you still see it, move the
+project to a shorter path such as `C:\Projects\excel-automation`.
 
 ## Licence
 

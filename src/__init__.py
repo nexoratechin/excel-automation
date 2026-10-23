@@ -6,6 +6,6 @@ numbers, removes duplicates, and writes a three-sheet report workbook.
 Run it with ``python -m src.main --help``.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 __all__ = ["__version__"]
