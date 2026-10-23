@@ -12,10 +12,20 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.batch import MAX_FILES, process_zip, zip_name_for
 from src.config import ConfigError
 from src.webapp_core import MAX_BYTES, inspect_file, process_file
 
 SAMPLE = Path("data/sample_dirty.xlsx")
+
+COUNTRIES = {"India (IN)": "IN", "United States (US)": "US", "Any country": "ANY"}
+COUNTRY_LABELS = list(COUNTRIES)
+FORMATS = {
+    "10 digits (9876543210)": "local",
+    "International (+919876543210)": "e164",
+    "Digits only": "digits",
+}
+FORMAT_LABELS = list(FORMATS)
 
 st.set_page_config(
     page_title="Excel Cleanup | Nexora Tech",
@@ -37,20 +47,96 @@ def cached_inspect(data: bytes, filename: str, header_row: int = 1) -> object:
 
 def reset_result() -> None:
     st.session_state.pop("result", None)
+    st.session_state.pop("batch", None)
     st.session_state.pop("result_for", None)
     st.session_state.pop("result_note", None)
 
 
+def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
+    """One ZIP in, one ZIP of cleaned workbooks out."""
+    st.info(
+        f"**Batch mode.** Every `.xlsx` and `.csv` inside the ZIP is cleaned with "
+        f"the same rules — up to {MAX_FILES} files. Columns are detected per file, "
+        "so folders with different layouts all work."
+    )
+
+    with st.form("batch_settings"):
+        left, right = st.columns(2)
+        with left:
+            country_label = st.selectbox("Phone numbers are from", COUNTRY_LABELS)
+        with right:
+            format_label = st.selectbox("Write phone numbers as", FORMAT_LABELS)
+        submitted = st.form_submit_button(
+            "Clean all files", type="primary", width="stretch"
+        )
+
+    if submitted:
+        reset_result()
+        with st.spinner("Cleaning every file..."):
+            try:
+                result = process_zip(
+                    data,
+                    filename,
+                    country=COUNTRIES[country_label],
+                    phone_format=FORMATS[format_label],
+                )
+            except ConfigError as exc:
+                st.error(str(exc))
+                st.stop()
+            except Exception:  # noqa: BLE001 - never show a stack trace to a client
+                st.error("Something went wrong reading that ZIP. Please send it to me directly.")
+                st.stop()
+        st.session_state["batch"] = result
+        st.session_state["result_for"] = fingerprint
+
+    result = st.session_state.get("batch")
+    if result is None:
+        return
+
+    st.divider()
+    st.subheader("Batch finished")
+
+    first, second, third, fourth = st.columns(4)
+    first.metric("Files cleaned", f"{result.files_ok} / {len(result.outcomes)}")
+    second.metric("Rows kept", f"{result.kept_total:,}")
+    third.metric("Rows rejected", f"{result.rejected_total:,}")
+    fourth.metric("Cells cleaned", f"{result.changes_total:,}")
+
+    if result.files_failed:
+        st.warning(
+            f"{result.files_failed} file(s) could not be read and were skipped. "
+            "They are marked in the table below."
+        )
+
+    st.dataframe(result.summary_frame, width="stretch", hide_index=True)
+
+    st.download_button(
+        f"Download all {result.files_ok} cleaned files",
+        result.archive,
+        file_name=zip_name_for(filename),
+        mime="application/zip",
+        type="primary",
+        width="stretch",
+    )
+    st.caption(
+        "The ZIP contains one workbook per input file, plus **batch_summary.csv** "
+        "with the same numbers shown above."
+    )
+
+
 uploaded = st.file_uploader(
     "Upload your contact list",
-    type=["xlsx", "xlsm", "csv"],
-    help=f"Excel or CSV, up to {MAX_BYTES // (1024 * 1024)} MB.",
+    type=["xlsx", "xlsm", "csv", "zip"],
+    help=(
+        f"Excel or CSV up to {MAX_BYTES // (1024 * 1024)} MB, "
+        f"or a ZIP holding up to {MAX_FILES} files."
+    ),
 )
 
 if uploaded is None:
     st.info(
         "**How it works**  \n"
-        "1. Upload your file.  \n"
+        "1. Upload your file, or a ZIP of several files.  \n"
         "2. Check the detected columns.  \n"
         "3. Download the cleaned file and the report."
     )
@@ -67,6 +153,10 @@ data = uploaded.getvalue()
 # The filename is not enough: clients upload "contacts.xlsx" every month, and a
 # stale result must never be offered for a different file with the same name.
 fingerprint = hashlib.sha256(data).hexdigest()[:16]
+
+if uploaded.name.lower().endswith(".zip"):
+    render_batch(data, uploaded.name, fingerprint)
+    st.stop()
 
 with st.expander("My column headers are not on row 1"):
     header_row = int(
@@ -117,15 +207,9 @@ with st.form("settings"):
 
     left, right = st.columns(2)
     with left:
-        country_label = st.selectbox(
-            "Phone numbers are from",
-            ["India (IN)", "United States (US)", "Any country"],
-        )
+        country_label = st.selectbox("Phone numbers are from", COUNTRY_LABELS)
     with right:
-        format_label = st.selectbox(
-            "Write phone numbers as",
-            ["10 digits (9876543210)", "International (+919876543210)", "Digits only"],
-        )
+        format_label = st.selectbox("Write phone numbers as", FORMAT_LABELS)
 
     keep_duplicates = st.checkbox(
         "Only report duplicates, do not remove them", value=False
@@ -137,12 +221,8 @@ with st.form("settings"):
 
 if submitted:
     reset_result()
-    country = {"India (IN)": "IN", "United States (US)": "US", "Any country": "ANY"}[country_label]
-    phone_format = {
-        "10 digits (9876543210)": "local",
-        "International (+919876543210)": "e164",
-        "Digits only": "digits",
-    }[format_label]
+    country = COUNTRIES[country_label]
+    phone_format = FORMATS[format_label]
 
     with st.spinner("Cleaning your file..."):
         try:
