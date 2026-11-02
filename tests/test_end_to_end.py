@@ -55,7 +55,9 @@ def test_end_to_end_produces_three_sheets(dirty_xlsx, tmp_path, capsys):
     assert out.exists()
 
     book = load_workbook(out)
-    assert book.sheetnames == ["Report", "Cleaned", "Rejected", "Changes"]
+    # "Possible duplicates" is added only when pairs are found.
+    assert book.sheetnames[:4] == ["Report", "Cleaned", "Rejected", "Changes"]
+    assert set(book.sheetnames) - set(book.sheetnames[:4]) <= {"Possible duplicates"}
     assert book["Cleaned"].max_row == 1 + 5     # 5 survivors
     assert book["Rejected"].max_row == 1 + 4    # 2 duplicates + 1 bad email + 1 bad phone
 

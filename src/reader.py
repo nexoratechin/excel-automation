@@ -215,6 +215,36 @@ def _key_tiebreak(col, hints: tuple[str, ...]) -> int:
 GSTIN_HINTS = ("gstin", "gstno", "gstnumber", "gst")
 PAN_HINTS = ("panno", "pannumber", "pan")
 PINCODE_HINTS = ("pincode", "postalcode", "zip", "pin")
+NAME_HINTS = ("fullname", "customername", "clientname", "contactperson", "leadname", "name")
+
+
+def guess_name_column(df: pd.DataFrame, sample: int = 60) -> str | None:
+    """Pick a person-name column for the duplicate review.
+
+    Advisory only - the review never changes the data - so a reasonable guess
+    beats forcing the user to configure one.
+    """
+    from .validators import clean_text
+
+    candidates: list[tuple[int, float, str]] = []
+    for col in df.columns:
+        key = _key(col)
+        if not any(hint in key for hint in NAME_HINTS):
+            continue
+        values = [clean_text(v) for v in df[col].tolist()]
+        values = [v for v in values if v][:sample]
+        if len(values) < 3:
+            continue
+        looks_like_a_person = sum(
+            1 for v in values if any(ch.isalpha() for ch in v) and len(v) <= 60
+        ) / len(values)
+        if looks_like_a_person >= 0.8:
+            candidates.append((1 if key == "name" else 0, looks_like_a_person, str(col)))
+
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][2]
 
 
 def guess_business_columns(

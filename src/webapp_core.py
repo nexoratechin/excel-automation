@@ -14,7 +14,7 @@ import pandas as pd
 
 from .cleaner import Stats, clean
 from .config import Config, ConfigError
-from .reader import guess_business_columns, guess_columns, read_table
+from .reader import guess_business_columns, guess_columns, guess_name_column, read_table
 from .report import write_workbook
 
 ALLOWED_SUFFIXES = {".xlsx", ".xlsm", ".csv", ".txt", ".tsv"}
@@ -42,9 +42,11 @@ class ProcessResult:
     cleaned_preview: pd.DataFrame
     rejected_preview: pd.DataFrame
     changes_preview: pd.DataFrame
+    possible_preview: pd.DataFrame
     cleaned_total: int
     rejected_total: int
     changes_total: int
+    possible_total: int
 
 
 def _check(data: bytes, filename: str) -> str:
@@ -141,6 +143,9 @@ def process_file(
         cfg.pan_col = cfg.pan_col or guess_pan
         cfg.pincode_col = cfg.pincode_col or guess_pin
 
+    if cfg.name_col is None and cfg.review_near_duplicates:
+        cfg.name_col = guess_name_column(df)
+
     result = clean(df, cfg)
 
     with tempfile.TemporaryDirectory() as folder:
@@ -156,9 +161,11 @@ def process_file(
         cleaned_preview=result.cleaned.head(10),
         rejected_preview=result.rejected.head(50),
         changes_preview=result.changes.head(50),
+        possible_preview=result.possible.head(50),
         cleaned_total=len(result.cleaned),
         rejected_total=len(result.rejected),
         changes_total=len(result.changes),
+        possible_total=len(result.possible),
     )
 
 __all__ = ["InspectResult", "ProcessResult", "inspect_file", "process_file", "MAX_BYTES"]

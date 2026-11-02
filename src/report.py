@@ -32,6 +32,8 @@ def write_workbook(result: CleanResult, cfg: Config, out_path: str | Path) -> Pa
         result.cleaned.to_excel(writer, sheet_name="Cleaned", index=False)
         result.rejected.to_excel(writer, sheet_name="Rejected", index=False)
         result.changes.to_excel(writer, sheet_name="Changes", index=False)
+        if not result.possible.empty:
+            result.possible.to_excel(writer, sheet_name="Possible duplicates", index=False)
 
         report = writer.book.create_sheet("Report", 0)
         _fill_report(report, result, cfg)
@@ -39,6 +41,8 @@ def write_workbook(result: CleanResult, cfg: Config, out_path: str | Path) -> Pa
         _style_data_sheet(writer.sheets["Cleaned"])
         _style_data_sheet(writer.sheets["Rejected"], reason_column=2)
         _style_data_sheet(writer.sheets["Changes"])
+        if "Possible duplicates" in writer.sheets:
+            _style_data_sheet(writer.sheets["Possible duplicates"], reason_column=10)
         _style_report(report)
         writer.book.active = 0
 
@@ -93,6 +97,10 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
     ):
         if column:
             summary_rows.append((label, count, BAD_FONT if count else None))
+    if cfg.review_near_duplicates and cfg.name_col:
+        summary_rows.append(
+            ("Possible duplicates", stats.possible_duplicates, None)
+        )
     for label, value, font in summary_rows:
         _write(ws, row, 1, label, font=None, fill=LABEL_FILL, border=True)
         cell = _write(ws, row, 2, value, font=font, border=True)
@@ -143,6 +151,12 @@ def _fill_report(ws, result: CleanResult, cfg: Config) -> None:
         "Changes - every cell that was cleaned, shown before and after.",
         "Your original file has not been modified.",
     ]
+    if not result.possible.empty:
+        notes.insert(
+            3,
+            "Possible duplicates - pairs that look like the same person. "
+            "Nothing was removed; review them and decide.",
+        )
     for note in notes:
         _write(ws, row, 1, f"- {note}")
         row += 1

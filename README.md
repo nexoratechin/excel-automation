@@ -17,7 +17,7 @@ throughout.
 | **Reads** | `.xlsx`, `.xlsm`, `.csv` (comma, semicolon, tab or pipe separated), or a `.zip` of up to 20 files |
 | **Cleans** | trims spaces, removes invisible characters, normalises case and phone formats |
 | **Validates** | email syntax, phone numbers against a country's numbering rules, Indian GSTIN / PAN / pincode formats |
-| **De-duplicates** | same email *or* same phone number, keeping the first occurrence |
+| **De-duplicates** | same email *or* same phone number, keeping the first occurrence; near-duplicates are suggested for review, never removed |
 | **Reports** | a styled workbook with a summary, the cleaned rows, and every rejected row with its reason |
 
 The original file is never modified.
@@ -182,6 +182,23 @@ cleaned" is a receipt. "I cleaned your file" is a claim.
 The list is capped at the first 20,000 changed cells so a huge file cannot
 produce an unusable workbook; the Report sheet says so when the cap is hit.
 
+**Possible duplicates** — pairs that look like the same person but were *not*
+removed:
+
+```
+Row A  Row B  Name A        Name B     Score  Why
+2      3      Rahul Sharma  Rahul S.   92     same name, one part written as an initial
+4      5      Priya Patel   Priya P.   92     same name, one part written as an initial
+```
+
+Exact matching catches `rahul@gmail.com` twice. It does not catch
+`Rahul Sharma` next to `Rahul S.` — and that is the duplicate that costs a
+client money when they pay per lead.
+
+**Nothing is deleted.** Merging two different people by accident is worse than
+leaving a duplicate in, so the tool only points at the pairs and lets the owner
+decide. Turn it off with `--no-near-duplicates`.
+
 ## What counts as a duplicate
 
 Two rows are duplicates if their **normalised email matches**, or their
@@ -310,6 +327,7 @@ Indian mobiles must start with 6–9. `--phone-format local` writes 10 digits,
 | `--phone-format` | `local` | `local`, `e164` or `digits` |
 | `--config` | none | JSON file with any of the above |
 | `--keep-duplicates` | off | report duplicates but keep them |
+| `--no-near-duplicates` | off | skip the near-duplicate review sheet |
 | `--keep-blank-rows` | off | keep rows where every cell is empty |
 | `--list-sheets` | — | print sheet names and exit |
 | `--quiet` | off | only print errors |
@@ -324,9 +342,10 @@ python -m pytest
 python scripts/make_sample.py    # regenerate data/sample_dirty.xlsx
 ```
 
-164 tests cover the validators, the cleaning rules, column detection, batch
-archives, the web app's processing path, and the full file-in/file-out flow. The
-three app smoke tests skip automatically if Streamlit is not installed.
+181 tests cover the validators, the cleaning rules, column detection, batch
+archives, near-duplicate matching, the web app's processing path, and the full
+file-in/file-out flow. The three app smoke tests skip automatically if Streamlit
+is not installed.
 
 ```
 app.py             Streamlit front end (widgets and wording only)
@@ -335,6 +354,7 @@ src/
   main.py          CLI, argument handling, summary output
   webapp_core.py   web app logic, testable without Streamlit
   batch.py         ZIP in, ZIP of cleaned workbooks out
+  neardupe.py      suggests likely duplicates without removing them
   config.py        Config dataclass + validation
   reader.py        xlsx/csv loading, column detection, encoding fallback
   validators.py    email and phone normalisation
@@ -344,7 +364,8 @@ scripts/
   make_sample.py   generates the deliberately messy demo file
 tests/
   test_validators.py, test_cleaner.py, test_reader.py,
-  test_webapp_core.py, test_batch.py, test_end_to_end.py, test_app_smoke.py
+  test_webapp_core.py, test_batch.py, test_neardupe.py, test_end_to_end.py,
+  test_app_smoke.py
 ```
 
 ## Troubleshooting

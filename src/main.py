@@ -14,7 +14,13 @@ from pathlib import Path
 
 from .cleaner import clean
 from .config import ConfigError, build_config, load_config_file
-from .reader import guess_business_columns, guess_columns, list_sheets, read_table
+from .reader import (
+    guess_business_columns,
+    guess_columns,
+    guess_name_column,
+    list_sheets,
+    read_table,
+)
 from .report import write_workbook
 from . import __version__
 
@@ -60,6 +66,11 @@ def build_parser() -> argparse.ArgumentParser:
     behaviour = parser.add_argument_group("behaviour")
     behaviour.add_argument("--config", help="JSON file with any of the options above")
     behaviour.add_argument("--keep-duplicates", action="store_true", help="report duplicates but keep them")
+    behaviour.add_argument(
+        "--no-near-duplicates",
+        action="store_true",
+        help="skip the review of near-duplicate names",
+    )
     behaviour.add_argument("--keep-blank-rows", action="store_true", help="keep rows where every cell is empty")
     behaviour.add_argument("--quiet", action="store_true", help="only print errors")
 
@@ -140,6 +151,12 @@ def main(argv: list[str] | None = None) -> int:
         if cfg.pincode_col is None and guess_pin:
             cfg.pincode_col = guess_pin
             detected.append(f"pincode '{guess_pin}'")
+
+    if cfg.name_col is None and cfg.review_near_duplicates:
+        guess_name = guess_name_column(df)
+        if guess_name:
+            cfg.name_col = guess_name
+            detected.append(f"name   '{guess_name}'")
     if cfg.email_col is None:
         print(
             "warning: no email column detected - emails were not validated. "
@@ -187,6 +204,8 @@ def _normalise_cli(values: dict) -> dict:
         out["keep_all_on_duplicate"] = True
     if out.pop("keep_blank_rows", False):
         out["drop_blank_rows"] = False
+    if out.pop("no_near_duplicates", False):
+        out["review_near_duplicates"] = False
     return out
 
 
@@ -208,6 +227,8 @@ def _print_summary(result, cfg, out: Path, elapsed: float, detected: list[str] |
     print(f"    missing fields {s.missing_required:>8,}")
     if s.blank_rows:
         print(f"  blank rows gone  {s.blank_rows:>8,}")
+    if s.possible_duplicates:
+        print(f"  possible dupes   {s.possible_duplicates:>8,}  (review sheet)")
     print("  " + "-" * 44)
     print(f"  written to       {out}")
     print(f"  took             {elapsed:.2f}s")

@@ -44,6 +44,7 @@ class Config:
     # Behaviour
     drop_blank_rows: bool = True
     keep_all_on_duplicate: bool = False
+    review_near_duplicates: bool = True
 
     def validate(self) -> None:
         if not self.input_path:
