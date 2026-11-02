@@ -347,6 +347,15 @@ if result is not None:
             )
             st.dataframe(result.changes_preview, width="stretch", hide_index=True)
 
+    if result.possible_total:
+        with st.expander(f"{result.possible_total:,} possible duplicates to review"):
+            st.caption(
+                "These pairs look like the same person but were **not** removed. "
+                "They are on the **Possible duplicates** sheet — merge them yourself "
+                "if you agree."
+            )
+            st.dataframe(result.possible_preview, width="stretch", hide_index=True)
+
     if result.rejected_total:
         with st.expander(f"See the {result.rejected_total:,} rejected rows"):
             st.caption(
@@ -358,8 +367,8 @@ if result is not None:
         st.info("No rows were rejected. Your file was already clean.")
 
     st.caption(
-        "The downloaded file has four sheets: **Report**, **Cleaned**, "
-        "**Rejected** and **Changes**."
+        "The downloaded file has up to five sheets: **Report**, **Cleaned**, "
+        "**Rejected**, **Changes** and **Possible duplicates**."
     )
 
 st.divider()

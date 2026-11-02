@@ -56,6 +56,7 @@ class Stats:
     invalid_gstin: int = 0
     invalid_pan: int = 0
     invalid_pincode: int = 0
+    possible_duplicates: int = 0
     reason_counts: dict[str, int] = field(default_factory=dict)
     fix_counts: dict[str, int] = field(default_factory=dict)
 
@@ -76,6 +77,7 @@ class CleanResult:
     mapping: dict[str, str]
     changes: pd.DataFrame = field(default_factory=pd.DataFrame)
     changes_truncated: bool = False
+    possible: pd.DataFrame = field(default_factory=pd.DataFrame)
     duplicates_examples: list[str] = field(default_factory=list)
 
 
@@ -113,6 +115,7 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
 
     stats = Stats(total_rows=len(df))
     kept_rows: list[dict] = []
+    kept_numbers: list[int] = []
     rejected_rows: list[dict] = []
     changes: list[dict] = []
     seen_email: dict[str, int] = {}
@@ -233,12 +236,29 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
         else:
             changes.extend(row_changes)
         kept_rows.append(record)
+        kept_numbers.append(row_no)
 
     stats.kept = len(kept_rows)
 
     cleaned = pd.DataFrame(kept_rows, columns=columns)
     rejected = pd.DataFrame(rejected_rows, columns=["Row #", "Reason", *columns])
     changes_df = pd.DataFrame(changes, columns=["Row #", "Column", "Before", "After", "Fix"])
+
+    possible_df = pd.DataFrame()
+    name_col = mapping.get("name")
+    if cfg.review_near_duplicates and name_col and kept_rows:
+        from .neardupe import find_possible_duplicates
+
+        email_col = mapping.get("email", "")
+        phone_col = mapping.get("phone", "")
+        possible_df = find_possible_duplicates(
+            rows=kept_numbers,
+            names=[row.get(name_col, "") for row in kept_rows],
+            emails=[row.get(email_col, "") for row in kept_rows],
+            phones=[row.get(phone_col, "") for row in kept_rows],
+        )
+        stats.possible_duplicates = len(possible_df)
+
     return CleanResult(
         cleaned=cleaned,
         rejected=rejected,
@@ -246,6 +266,7 @@ def clean(df: pd.DataFrame, cfg: Config) -> CleanResult:
         mapping=mapping,
         changes=changes_df,
         changes_truncated=changes_truncated,
+        possible=possible_df,
         duplicates_examples=duplicate_examples,
     )
 
