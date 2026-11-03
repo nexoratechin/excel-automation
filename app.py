@@ -18,13 +18,9 @@ from src.webapp_core import MAX_BYTES, inspect_file, process_file
 
 SAMPLE = Path("data/sample_dirty.xlsx")
 
-COUNTRIES = {"India (IN)": "IN", "United States (US)": "US", "Any country": "ANY"}
+COUNTRIES = {"India": "IN", "United States": "US", "Any country": "ANY"}
 COUNTRY_LABELS = list(COUNTRIES)
-FORMATS = {
-    "10 digits (9876543210)": "local",
-    "International (+919876543210)": "e164",
-    "Digits only": "digits",
-}
+FORMATS = {"Local": "local", "International": "e164", "Digits only": "digits"}
 FORMAT_LABELS = list(FORMATS)
 
 st.set_page_config(
@@ -89,7 +85,10 @@ def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
         with right:
             format_label = st.selectbox("Write phone numbers as", FORMAT_LABELS)
         submitted = st.form_submit_button(
-            "Clean all files", type="primary", width="stretch"
+            "Clean all files",
+            type="primary",
+            icon=":material/cleaning_services:",
+            width="stretch",
         )
 
     if submitted:
@@ -115,8 +114,8 @@ def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
     if result is None:
         return
 
-    st.divider()
-    st.subheader("Batch finished")
+    st.space("medium")
+    st.subheader("Batch finished", icon=":material/task_alt:")
 
     stat_grid([
         ("Files cleaned", f"{result.files_ok} / {len(result.outcomes)}"),
@@ -127,10 +126,15 @@ def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
     if result.files_failed:
         st.warning(
             f"{result.files_failed} file(s) could not be read and were skipped. "
-            "They are marked in the table below."
+            "They are marked in the table below.",
+            icon=":material/warning:",
         )
 
-    st.dataframe(result.summary_frame, width="stretch", hide_index=True)
+    summary = result.summary_frame
+    if not result.files_failed:
+        # Nine columns do not fit on a laptop; the two that carry no news go.
+        summary = summary.drop(columns=["Status", "Rows in"])
+    st.dataframe(summary, width="stretch", hide_index=True)
 
     st.download_button(
         f"Download all {result.files_ok} cleaned files",
@@ -138,6 +142,7 @@ def render_batch(data: bytes, filename: str, fingerprint: str) -> None:
         file_name=zip_name_for(filename),
         mime="application/zip",
         type="primary",
+        icon=":material/download:",
         width="stretch",
     )
     st.caption(
@@ -156,11 +161,16 @@ uploaded = st.file_uploader(
 )
 
 if uploaded is None:
-    st.info(
-        "**How it works**  \n"
-        "1. Upload your file, or a ZIP of several files.  \n"
-        "2. Check the detected columns.  \n"
-        "3. Download the cleaned file and the report."
+    with st.container(border=True):
+        st.markdown("##### How it works")
+        st.markdown(
+            ":material/upload_file: **Upload** your Excel, CSV, or a ZIP of several files.  \n"
+            ":material/tune: **Check** the columns we detected — change them if needed.  \n"
+            ":material/download: **Download** the cleaned file, with a report of every change."
+        )
+    st.caption(
+        "Up to 15 MB per file · 20 files per ZIP · nothing is uploaded anywhere, "
+        "it all runs on this machine."
     )
     if SAMPLE.exists():
         st.download_button(
@@ -168,6 +178,7 @@ if uploaded is None:
             SAMPLE.read_bytes(),
             file_name="sample_dirty.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            icon=":material/download:",
         )
     st.stop()
 
@@ -209,10 +220,11 @@ if st.session_state.get("result_for") not in (None, fingerprint):
 
 st.success(
     f"Read **{info.row_count:,} rows** and **{len(info.columns)} columns** "
-    f"from `{uploaded.name}`."
+    f"from `{uploaded.name}`.",
+    icon=":material/check_circle:",
 )
 
-with st.expander("Look at the first rows"):
+with st.expander("Look at the first rows", icon=":material/table_view:"):
     st.dataframe(info.preview, width="stretch", hide_index=True)
 
 options = ["(none)"] + list(info.columns)
@@ -220,7 +232,7 @@ email_index = options.index(info.email_guess) if info.email_guess in options els
 phone_index = options.index(info.phone_guess) if info.phone_guess in options else 0
 
 with st.form("settings"):
-    st.subheader("Check the columns")
+    st.subheader("Check the columns", icon=":material/tune:")
     left, right = st.columns(2)
     with left:
         email_choice = st.selectbox("Email column", options, index=email_index)
@@ -234,7 +246,7 @@ with st.form("settings"):
         help="Rows missing these will be moved to the Rejected sheet. Leave empty to allow blanks.",
     )
 
-    with st.expander("Indian business fields (optional)"):
+    with st.expander("Indian business fields (optional)", icon=":material/badge:"):
         st.caption(
             "GSTIN and PAN are checked for format only — not verified with the "
             "GST portal. Invalid values send that row to Rejected."
@@ -261,18 +273,29 @@ with st.form("settings"):
                 else 0,
             )
 
-    left, right = st.columns(2)
-    with left:
-        country_label = st.selectbox("Phone numbers are from", COUNTRY_LABELS)
-    with right:
-        format_label = st.selectbox("Write phone numbers as", FORMAT_LABELS)
+    country_label = st.segmented_control(
+        "Phone numbers are from",
+        COUNTRY_LABELS,
+        default=COUNTRY_LABELS[0],
+        key="single_country",
+    ) or COUNTRY_LABELS[0]
+    format_label = st.segmented_control(
+        "Write phone numbers as",
+        FORMAT_LABELS,
+        default=FORMAT_LABELS[0],
+        key="single_format",
+        help="Local: 9876543210 · International: +919876543210 · Digits only: 919876543210",
+    ) or FORMAT_LABELS[0]
 
     keep_duplicates = st.checkbox(
         "Only report duplicates, do not remove them", value=False
     )
 
     submitted = st.form_submit_button(
-        "Clean this file", type="primary", width="stretch"
+        "Clean this file",
+        type="primary",
+        icon=":material/cleaning_services:",
+        width="stretch",
     )
 
 if submitted:
@@ -317,8 +340,8 @@ if submitted:
 
 result = st.session_state.get("result")
 if result is not None:
-    st.divider()
-    st.subheader("Done")
+    st.space("medium")
+    st.subheader("Your file is ready", icon=":material/task_alt:")
     if st.session_state.get("result_note"):
         st.caption(f"Checked {st.session_state['result_note']}. Original file untouched.")
 
@@ -336,11 +359,15 @@ if result is not None:
         file_name=f"{Path(uploaded.name).stem}_cleaned.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
+        icon=":material/download:",
         width="stretch",
     )
 
     if result.changes_total:
-        with st.expander(f"See the {result.changes_total:,} cells that were cleaned"):
+        with st.expander(
+            f"See the {result.changes_total:,} cells that were cleaned",
+            icon=":material/edit_note:",
+        ):
             st.caption(
                 "Every fix is shown before and after, and listed on the "
                 "**Changes** sheet in the downloaded file."
@@ -348,7 +375,10 @@ if result is not None:
             st.dataframe(result.changes_preview, width="stretch", hide_index=True)
 
     if result.possible_total:
-        with st.expander(f"{result.possible_total:,} possible duplicates to review"):
+        with st.expander(
+            f"{result.possible_total:,} possible duplicates to review",
+            icon=":material/group:",
+        ):
             st.caption(
                 "These pairs look like the same person but were **not** removed. "
                 "They are on the **Possible duplicates** sheet — merge them yourself "
@@ -357,7 +387,10 @@ if result is not None:
             st.dataframe(result.possible_preview, width="stretch", hide_index=True)
 
     if result.rejected_total:
-        with st.expander(f"See the {result.rejected_total:,} rejected rows"):
+        with st.expander(
+            f"See the {result.rejected_total:,} rejected rows",
+            icon=":material/block:",
+        ):
             st.caption(
                 "Nothing was deleted silently. Every one of these is on the "
                 "Rejected sheet in the downloaded file, with its reason."
@@ -371,7 +404,7 @@ if result is not None:
         "**Rejected**, **Changes** and **Possible duplicates**."
     )
 
-st.divider()
+st.space("large")
 st.caption(
     "Questions or a file over 15 MB? Message me and I will handle it directly."
 )

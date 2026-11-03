@@ -2,9 +2,29 @@
 base = "light"
 primaryColor = "#1F3864"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F2F4F8"
-textColor = "#1A1A1A"
-font = "sans serif"
+secondaryBackgroundColor = "#F4F6FA"
+textColor = "#16202C"
+
+# Inter keeps headings and body consistent; falls back to the system sans if
+# the machine is offline.
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap"
+baseFontSize = 16
+headingFontWeights = [700, 650, 600, 600, 500, 500]
+headingFontSizes = ["2.25rem", "1.6rem", "1.25rem", "1.05rem", "1rem", "0.875rem"]
+metricValueFontSize = "2rem"
+metricValueFontWeight = 700
+
+baseRadius = "10px"
+buttonRadius = "10px"
+showWidgetBorder = true
+
+paddingTop = "2.25rem"
+paddingBottom = "2.5rem"
+
+dataframeHeaderBackgroundColor = "#1F3864"
+dataframeHeaderTextColor = "#FFFFFF"
+dataframeBorderColor = "#E3E8EF"
 
 [server]
 # Matches MAX_BYTES in src/webapp_core.py so the page never promises more than
