@@ -4,5 +4,6 @@ __pycache__/
 .venv/
 venv/
 output/
+build/
 *.egg-info/
 .DS_Store
