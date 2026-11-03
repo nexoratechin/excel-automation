@@ -25,13 +25,19 @@ The original file is never modified.
 ## What it looks like
 
 The client opens a link, drags a file in, and gets the cleaned workbook back.
-
 ![Upload page](docs/screenshot-upload.png)
 
 After clicking *Clean this file*, they see exactly what changed before they
 download anything:
 
 ![Results](docs/screenshot-results.png)
+
+### Client test guide
+
+Handing this to a client? [`docs/Client-Test-Guide.pdf`](docs/Client-Test-Guide.pdf)
+is a 10-page walkthrough: every feature explained, 18 numbered test cases with
+the exact numbers to expect, known limits, troubleshooting, and a sign-off page
+they can sign.
 
 ## Two ways to use it
 
