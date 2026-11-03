@@ -70,6 +70,31 @@ What the page does:
 Guards: 15 MB limit, `.xlsx` / `.xlsm` / `.csv` only, and every error is shown as
 a plain sentence rather than a stack trace.
 
+### In the client's own words
+
+Not every client can pick from dropdowns. A free-text box reads the request and
+sets the controls to match, so "keep the duplicates and write numbers with +91"
+does what it says.
+
+![Describe the problem](docs/screenshot-request.png)
+
+It is a parser, not a chatbot: no API key, no network, no invented behaviour.
+It recognises things like:
+
+| They write | It sets |
+|---|---|
+| keep / don't remove duplicates | duplicates listed but kept |
+| +91, international, country code | phone format `+91...` |
+| digits only, 10 digit, local | phone format |
+| US / Indian / any country | the numbering rule |
+| don't check phone / ignore email | that column switched off |
+| headers on row 3 | header row |
+| gstin, pan | confirms those will be checked |
+
+When the request is out of scope it says so instead of pretending - for example
+"verify the emails exist" gets *"that needs a paid verification service, I only
+check the format"*, and stays visible rather than being silently ignored.
+
 ### Batch mode
 
 Upload a `.zip` instead of a single file and every spreadsheet inside it is

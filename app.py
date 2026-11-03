@@ -14,6 +14,7 @@ import streamlit as st
 
 from src.batch import MAX_FILES, process_zip, zip_name_for
 from src.config import ConfigError
+from src.request_parser import describe, parse_request
 from src.webapp_core import MAX_BYTES, inspect_file, process_file
 
 SAMPLE = Path("data/sample_dirty.xlsx")
@@ -46,6 +47,8 @@ def reset_result() -> None:
     st.session_state.pop("batch", None)
     st.session_state.pop("result_for", None)
     st.session_state.pop("result_note", None)
+    st.session_state.pop("plan", None)
+    st.session_state.pop("plan_for", None)
 
 
 def stat_grid(items: list[tuple[str, str]]) -> None:
@@ -191,13 +194,40 @@ if uploaded.name.lower().endswith(".zip"):
     render_batch(data, uploaded.name, fingerprint)
     st.stop()
 
+with st.form("describe", border=False):
+    problem = st.text_area(
+        "Or describe the problem in your own words",
+        placeholder=(
+            "e.g. keep the duplicates, write phone numbers with +91, "
+            "and my headers are on row 3"
+        ),
+        height=84,
+        help="I will set the options below to match. You can still change anything yourself.",
+    )
+    applied_clicked = st.form_submit_button(
+        "Apply to the settings below", icon=":material/check:"
+    )
+
+if applied_clicked:
+    st.session_state["plan"] = parse_request(problem)
+    st.session_state["plan_for"] = fingerprint
+
+plan = parse_request("")
+if st.session_state.get("plan_for") == fingerprint:
+    plan = st.session_state.get("plan") or plan
+
+if describe(plan):
+    st.caption(f"**Understood:** {describe(plan)}")
+if plan.unsupported:
+    st.warning("  \n".join(plan.unsupported), icon=":material/info:")
+
 with st.expander("My column headers are not on row 1"):
     header_row = int(
         st.number_input(
             "Header row",
             min_value=1,
             max_value=50,
-            value=1,
+            value=plan.header_row or 1,
             help="Leave at 1 unless there is a title or logo row above the headers.",
         )
     )
@@ -228,8 +258,22 @@ with st.expander("Look at the first rows", icon=":material/table_view:"):
     st.dataframe(info.preview, width="stretch", hide_index=True)
 
 options = ["(none)"] + list(info.columns)
-email_index = options.index(info.email_guess) if info.email_guess in options else 0
-phone_index = options.index(info.phone_guess) if info.phone_guess in options else 0
+email_default = (
+    "(none)" if plan.skip_email
+    else info.email_guess if info.email_guess in options else "(none)"
+)
+phone_default = (
+    "(none)" if plan.skip_phone
+    else info.phone_guess if info.phone_guess in options else "(none)"
+)
+email_index = options.index(email_default)
+phone_index = options.index(phone_default)
+
+COUNTRY_BY_CODE = {code: label for label, code in COUNTRIES.items()}
+FORMAT_BY_CODE = {code: label for label, code in FORMATS.items()}
+country_default = COUNTRY_BY_CODE.get(plan.country or "IN", COUNTRY_LABELS[0])
+format_default = FORMAT_BY_CODE.get(plan.phone_format or "local", FORMAT_LABELS[0])
+keep_default = plan.keep_duplicates if plan.keep_duplicates is not None else False
 
 with st.form("settings"):
     st.subheader("Check the columns", icon=":material/tune:")
@@ -276,19 +320,17 @@ with st.form("settings"):
     country_label = st.segmented_control(
         "Phone numbers are from",
         COUNTRY_LABELS,
-        default=COUNTRY_LABELS[0],
-        key="single_country",
-    ) or COUNTRY_LABELS[0]
+        default=country_default,
+    ) or country_default
     format_label = st.segmented_control(
         "Write phone numbers as",
         FORMAT_LABELS,
-        default=FORMAT_LABELS[0],
-        key="single_format",
+        default=format_default,
         help="Local: 9876543210 · International: +919876543210 · Digits only: 919876543210",
-    ) or FORMAT_LABELS[0]
+    ) or format_default
 
     keep_duplicates = st.checkbox(
-        "Only report duplicates, do not remove them", value=False
+        "Only report duplicates, do not remove them", value=keep_default
     )
 
     submitted = st.form_submit_button(
